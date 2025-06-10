@@ -78,6 +78,8 @@ RUN source /opt/ros/humble/install/setup.sh && colcon build
 
 ENV SHELL="/bin/bash"
 
+LABEL org.opencontainers.image.source="https://github.com/MAVTech-srl/slam-ros2.git"
+
 # [Optional] Set the default user. Omit if you want to keep the default as root, though you won't be able to see GUI
 # USER $USERNAME
 COPY ./ros_entrypoint.sh /
