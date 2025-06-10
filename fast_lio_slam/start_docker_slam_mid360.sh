@@ -26,4 +26,4 @@ docker run -it --rm \
     -v /etc/X11:/etc/X11 \
     ${DOCKER_ARGS[@]} \
     --runtime nvidia \
-    ghcr.io/mavtech-srl/slam_avia ros2 launch src/slam_tools/launch/slam.launch.py
+    ghcr.io/mavtech-srl/fast-lio-slam ros2 launch src/slam_tools/launch/slam.launch.py
