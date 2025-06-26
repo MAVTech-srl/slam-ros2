@@ -26,4 +26,4 @@ docker run -it --rm \
     -v /etc/X11:/etc/X11 \
     ${DOCKER_ARGS[@]} \
     --runtime nvidia \
-    ghcr.io/mavtech-srl/fast-lio-slam:0.1 ros2 launch src/slam_tools/launch/slam.launch.py sigterm_timeout:=300
+    ghcr.io/mavtech-srl/fast-lio-slam:0.2 ros2 launch src/slam_tools/launch/slam.launch.py sigterm_timeout:=300

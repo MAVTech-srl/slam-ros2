@@ -1,0 +1,30 @@
+FROM ros:humble-ros-base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \	
+    git \
+    python3-pip \
+    nano \
+    software-properties-common \
+    wget \
+    python3-colcon-common-extensions \
+    pkg-config \
+    geographiclib-tools \
+    libgeographic-dev \
+    libeigen-stl-containers-dev \
+    ros-humble-mavros
+
+RUN pip install future lxml
+
+# RUN ros2 run mavros install_geographiclib_datasets.sh
+RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh 
+RUN chmod +x install_geographiclib_datasets.sh
+RUN ./install_geographiclib_datasets.sh
+
+ENV SHELL="/bin/bash"
+
+COPY ./mavros_entrypoint.sh /
+ENTRYPOINT [ "/bin/bash", "mavros_entrypoint.sh" ]
+CMD ["bash"]

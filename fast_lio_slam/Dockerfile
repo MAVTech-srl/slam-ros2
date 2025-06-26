@@ -5,9 +5,10 @@ FROM $BASE_IMAGE AS slam
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DISPLAY=:1
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \	
-    wget
+RUN rm /etc/apt/sources.list.d/ros2.list && \
+    apt update && apt install -y curl && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
 ARG USERNAME=rosdev
 ARG USER_UID=1000
@@ -31,7 +32,11 @@ RUN apt-get install -y \
             python3-colcon-common-extensions \
             pkg-config \
             libnanoflann-dev \
-	        mpich openmpi-bin openmpi-common openmpi-doc libopenmpi-dev
+	        mpich openmpi-bin openmpi-common openmpi-doc libopenmpi-dev \
+            geographiclib-tools \
+            libgeographic-dev \
+            libeigen-stl-containers-dev 
+
 # Install Livox SDK
 WORKDIR /usr/src
 RUN git clone https://github.com/Livox-SDK/Livox-SDK2.git \
@@ -58,6 +63,20 @@ RUN git clone https://github.com/shenxw0127/Livox-SDK-24.04.git ./Livox-SDK \
     && make -j4 \
     && make install
 
+RUN apt-get install -y gdbserver libgeographic-dev libeigen-stl-containers-dev libpdal-dev geographiclib-tools sqlite3
+RUN pip install future lxml
+
+RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh \
+    && bash install_geographiclib_datasets.sh
+
+RUN wget https://download.osgeo.org/proj/proj-9.6.2.tar.gz -O proj.tar.gz \
+    && mkdir proj_source \
+    && tar -xvf proj.tar.gz -C proj_source --strip-components=1 \
+    && rm proj.tar.gz \
+    && cd proj_source \
+    && mkdir build && cd build \
+    && cmake -DCMAKE_BUILD_TYPE=Release .. \
+    && sudo make -j8 install
 
 # ADD repo's of submodules
 WORKDIR /home/${USERNAME}/ros2_ws
@@ -74,8 +93,17 @@ RUN git clone https://github.com/ros-perception/perception_pcl.git --branch humb
 
 RUN git clone https://github.com/MAVTech-srl/slam_tools.git ./src/slam_tools
 
+RUN git clone https://github.com/ros-geographic-info/geographic_info.git --branch ros2 ./geographic_info
+
+RUN git clone https://github.com/ros/diagnostics.git --branch ros2-humble ./src/diagnostics
+
+RUN git clone https://github.com/ros2-gbp/mavlink-gbp-release.git --branch release/humble/mavlink ./src/mavlink
+
+RUN git clone https://github.com/mavlink/mavros.git --branch ros2 ./src/mavros
+
 RUN source /opt/ros/humble/install/setup.sh && colcon build
 
+RUN mkdir -p rosbag
 ENV SHELL="/bin/bash"
 
 LABEL org.opencontainers.image.source="https://github.com/MAVTech-srl/slam-ros2.git"

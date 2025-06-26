@@ -9,9 +9,10 @@ DOCKER_ARGS+=("-e NVIDIA_DRIVER_CAPABILITIES=all")
 #DOCKER_ARGS+=("-e USER")
 #DOCKER_ARGS+=("-e HOST_USER_UID=`id -u`")
 #DOCKER_ARGS+=("-e HOST_USER_GID=`id -g`")
-
+REMOTE_USER=rosdev
 DOCKER_ARGS+=("-v /usr/bin/tegrastats:/usr/bin/tegrastats")
 DOCKER_ARGS+=("-v /tmp/:/tmp/")
+DOCKER_ARGS+=("-v ~/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
 DOCKER_ARGS+=("-v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra")
 DOCKER_ARGS+=("-v /usr/src/jetson_multimedia_api:/usr/src/jetson_multimedia_api")
 DOCKER_ARGS+=("--pid=host") 
@@ -26,4 +27,4 @@ docker run -it --rm \
     -v /etc/X11:/etc/X11 \
     ${DOCKER_ARGS[@]} \
     --runtime nvidia \
-    ghcr.io/mavtech-srl/fast-lio-slam:0.1 ros2 launch src/slam_tools/launch/slam_avia.launch.py sigterm_timeout:=300
+    ghcr.io/mavtech-srl/fast-lio-slam:0.2 ros2 launch src/slam_tools/launch/slam_avia.launch.py sigterm_timeout:=300
