@@ -81,6 +81,8 @@ RUN wget https://download.osgeo.org/proj/proj-9.6.2.tar.gz -O proj.tar.gz \
 # ADD repo's of submodules
 WORKDIR /home/${USERNAME}/ros2_ws
 
+RUN echo "Update git repos"
+
 RUN mkdir -p src && cd src/ && \
     git clone https://github.com/MAVTech-srl/FAST_LIO_ROS2.git --recursive ./fast_lio
     

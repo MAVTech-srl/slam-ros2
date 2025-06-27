@@ -12,7 +12,7 @@ DOCKER_ARGS+=("-e NVIDIA_DRIVER_CAPABILITIES=all")
 REMOTE_USER=rosdev
 DOCKER_ARGS+=("-v /usr/bin/tegrastats:/usr/bin/tegrastats")
 DOCKER_ARGS+=("-v /tmp/:/tmp/")
-DOCKER_ARGS+=("-v ~/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
+DOCKER_ARGS+=("-v /home/jetson/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
 DOCKER_ARGS+=("-v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra")
 DOCKER_ARGS+=("-v /usr/src/jetson_multimedia_api:/usr/src/jetson_multimedia_api")
 DOCKER_ARGS+=("--pid=host") 
