@@ -86,7 +86,7 @@ RUN echo "Update git repos"
 RUN mkdir -p src && cd src/ && \
     git clone https://github.com/MAVTech-srl/FAST_LIO_ROS2.git --recursive ./fast_lio
     
-RUN git clone https://github.com/MAVTech-srl/livox_avia_ros2_driver.git ./src/livox_avia_ros2_driver
+RUN git clone https://github.com/MAVTech-srl/livox_avia_ros2_driver.git --branch devel ./src/livox_avia_ros2_driver
 
 RUN git clone https://github.com/MAVTech-srl/livox_ros_driver2.git ./src/livox_ros_driver2
 
