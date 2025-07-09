@@ -12,10 +12,11 @@ DOCKER_ARGS+=("-e NVIDIA_DRIVER_CAPABILITIES=all")
 REMOTE_USER=rosdev
 DOCKER_ARGS+=("-v /usr/bin/tegrastats:/usr/bin/tegrastats")
 DOCKER_ARGS+=("-v /tmp/:/tmp/")
-DOCKER_ARGS+=("-v /home/jetson/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
+DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
 DOCKER_ARGS+=("-v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra")
 DOCKER_ARGS+=("-v /usr/src/jetson_multimedia_api:/usr/src/jetson_multimedia_api")
 DOCKER_ARGS+=("--pid=host") 
+DOCKER_ARGS+=("-v ${HOME}/Documents/slam_ros2/fast_lio_slam/avia_config.json:/home/${REMOTE_USER}/ros2_ws/fast-lio-slam-ros2/src/livox_avia_ros2_driver/livox_ros2_driver/config/avia_config.json")
     
 DOCKER_ARGS+=("--mount source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached")
 DOCKER_ARGS+=("--mount source=/dev/dri,target=/dev/dri,type=bind,consistency=cached")  
