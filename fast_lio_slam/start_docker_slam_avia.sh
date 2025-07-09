@@ -16,7 +16,7 @@ DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
 DOCKER_ARGS+=("-v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra")
 DOCKER_ARGS+=("-v /usr/src/jetson_multimedia_api:/usr/src/jetson_multimedia_api")
 DOCKER_ARGS+=("--pid=host") 
-DOCKER_ARGS+=("-v ${HOME}/Documents/slam_ros2/fast_lio_slam/avia_config.json:/home/${REMOTE_USER}/ros2_ws/fast-lio-slam-ros2/src/livox_avia_ros2_driver/livox_ros2_driver/config/avia_config.json")
+DOCKER_ARGS+=("-v ${HOME}/Documents/slam_ros2/fast_lio_slam/livox_lidar_config.json:/home/${REMOTE_USER}/ros2_ws/install/livox_ros2_driver/share/livox_ros2_driver/config/livox_lidar_config.json")
     
 DOCKER_ARGS+=("--mount source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached")
 DOCKER_ARGS+=("--mount source=/dev/dri,target=/dev/dri,type=bind,consistency=cached")  
@@ -29,3 +29,4 @@ docker run -it --rm \
     ${DOCKER_ARGS[@]} \
     --runtime nvidia \
     ghcr.io/mavtech-srl/fast-lio-slam:0.3 ros2 launch src/slam_tools/launch/slam_avia.launch.py sigterm_timeout:=300
+    # ghcr.io/mavtech-srl/fast-lio-slam:0.3
