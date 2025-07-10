@@ -1,3 +1,3 @@
 #!/bin/bash
-
-sudo ptp4l -i enP8p1s0 -S -ml 6
+ETH_DEV_NAME=$(ls /sys/class/net | grep ^e)
+sudo ptp4l -i ${ETH_DEV_NAME} -S -ml 6
