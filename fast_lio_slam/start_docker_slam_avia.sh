@@ -2,24 +2,25 @@
 xhost +
 
 DOCKER_ARGS+=("-e DISPLAY=:1")
-DOCKER_ARGS+=("-e NVIDIA_VISIBLE_DEVICES=all")
-DOCKER_ARGS+=("-e NVIDIA_DRIVER_CAPABILITIES=all")
+# DOCKER_ARGS+=("-e NVIDIA_VISIBLE_DEVICES=all")
+# DOCKER_ARGS+=("-e NVIDIA_DRIVER_CAPABILITIES=all")
 
 # DOCKER_ARGS+=("--user 1000")
 #DOCKER_ARGS+=("-e USER")
 #DOCKER_ARGS+=("-e HOST_USER_UID=`id -u`")
 #DOCKER_ARGS+=("-e HOST_USER_GID=`id -g`")
 REMOTE_USER=rosdev
-DOCKER_ARGS+=("-v /usr/bin/tegrastats:/usr/bin/tegrastats")
+# DOCKER_ARGS+=("-v /usr/bin/tegrastats:/usr/bin/tegrastats")
 DOCKER_ARGS+=("-v /tmp/:/tmp/")
 DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
-DOCKER_ARGS+=("-v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra")
-DOCKER_ARGS+=("-v /usr/src/jetson_multimedia_api:/usr/src/jetson_multimedia_api")
+# DOCKER_ARGS+=("-v /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra")
+# DOCKER_ARGS+=("-v /usr/src/jetson_multimedia_api:/usr/src/jetson_multimedia_api")
 DOCKER_ARGS+=("--pid=host") 
-# DOCKER_ARGS+=("-v ${HOME}/Documents/slam-ros2/fast_lio_slam/livox_lidar_config.json:/home/${REMOTE_USER}/ros2_ws/install/livox_ros2_driver/share/livox_ros2_driver/config/livox_lidar_config.json")
+LIDAR_CONFIG_PATH=$(echo "${PWD}/scripts/slam-ros2/fast_lio_slam/config/livox_lidar_config.json")
+DOCKER_ARGS+=("-v ${LIDAR_CONFIG_PATH}:/home/${REMOTE_USER}/ros2_ws/install/livox_ros2_driver/share/livox_ros2_driver/config/livox_lidar_config.json")
     
 DOCKER_ARGS+=("--mount source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached")
-DOCKER_ARGS+=("--mount source=/dev/dri,target=/dev/dri,type=bind,consistency=cached")  
+# DOCKER_ARGS+=("--mount source=/dev/dri,target=/dev/dri,type=bind,consistency=cached")  
  
 docker run -it --rm \
     --privileged \
@@ -27,7 +28,6 @@ docker run -it --rm \
     --ipc=host \
     -v /etc/X11:/etc/X11 \
     ${DOCKER_ARGS[@]} \
-    --runtime nvidia \
     --name fast-lio-slam \
     ghcr.io/mavtech-srl/fast-lio-slam:0.4-dev ros2 launch src/slam_tools/launch/slam_avia.launch.py sigterm_timeout:=300
     # ghcr.io/mavtech-srl/fast-lio-slam:0.3
