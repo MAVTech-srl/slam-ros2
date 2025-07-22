@@ -13,19 +13,22 @@ DOCKER_ARGS+=("--mount source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,con
 PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
     docker run -it --rm \
+        --init \
         --privileged \
         --network host \
         --ipc=host \
         -v /etc/X11:/etc/X11 \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch src/slam_tools/launch/slam.launch.py sigterm_timeout:=300
+        ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py sigterm_timeout:=3
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
     docker run -it --rm \
+        --init \
         --privileged \
         --network host \
         --ipc=host \
         -v /etc/X11:/etc/X11 \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.4-dev ros2 launch src/slam_tools/launch/slam.launch.py sigterm_timeout:=300
+        ghcr.io/mavtech-srl/fast-lio-slam:0.4-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py sigterm_timeout:=3
+fi
