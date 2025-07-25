@@ -9,13 +9,13 @@
 
 help()
 {
-    echo "Helper script to start fast-lio SLAM with Livox MID360
+    echo -e "Helper script to start fast-lio SLAM with Livox MID360
 
-## NOTE: NO NOT RUN DIRECTLY THIS SCRIPT! USE MAVMANAGER TO RUN THIS!
+\033[31;1;4m## NOTE: NO NOT RUN DIRECTLY THIS SCRIPT! USE MAVMANAGER TO RUN THIS!\033[0m
 
 Usage: bash start_docker_slam_avia.sh [OPTION]
 [OPTION] are:
-   --external-monitor    [=yes/no]      Execute with a plugged external monitor (default 'no')
+   --external-monitor    [=yes/no]      Execute with a plugged external monitor. This will enable Rviz2 (default 'no')
    -h, --help                           Print this help"
    exit 0
 }
@@ -35,7 +35,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-
+RVIZ_USE=False
 if [ "$EXTERNAL_MONITOR" = "yes" ]; then
     echo "Running with external monitor"
     xhost +
@@ -43,6 +43,9 @@ if [ "$EXTERNAL_MONITOR" = "yes" ]; then
     DOCKER_ARGS+=("-e DISPLAY=:1")
     DOCKER_ARGS+=("--mount source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached")
     DOCKER_ARGS+=("-v /etc/X11:/etc/X11")
+
+    RVIZ_USE=True
+    echo "Rviz Running"
 fi
 
 DOCKER_ARGS+=("-v /tmp/:/tmp/")
@@ -59,7 +62,7 @@ if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py sigterm_timeout:=3
+        ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py rviz:=$RVIZ_USE sigterm_timeout:=3
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
     docker run -it --rm \
         --init \
@@ -68,5 +71,5 @@ elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.4-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py sigterm_timeout:=3
+        ghcr.io/mavtech-srl/fast-lio-slam:0.4-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py rviz:=$RVIZ_USE sigterm_timeout:=3
 fi
