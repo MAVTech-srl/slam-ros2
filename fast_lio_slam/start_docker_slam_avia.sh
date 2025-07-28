@@ -60,7 +60,7 @@ DOCKER_ARGS+=("-v ${LIDAR_CONFIG_PATH}:/home/${REMOTE_USER}/ros2_ws/install/livo
 PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
     echo "Running Raspberry image"
-    docker run -it --rm \
+    docker run --rm \
         --init \
         --privileged \
         --network host \
@@ -70,7 +70,7 @@ if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
         ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py rviz:=$RVIZ_USE sigterm_timeout:=3
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
     echo "Running Jetson image"
-    docker run -it --rm \
+    docker run --rm \
         --init \
         --privileged \
         --network host \

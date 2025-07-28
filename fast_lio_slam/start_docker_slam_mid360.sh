@@ -55,7 +55,7 @@ DOCKER_ARGS+=("--pid=host")
  
 PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
-    docker run -it --rm \
+    docker run --rm \
         --init \
         --privileged \
         --network host \
@@ -64,7 +64,7 @@ if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
         --name fast-lio-slam \
         ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py rviz:=$RVIZ_USE sigterm_timeout:=3
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
-    docker run -it --rm \
+    docker run --rm \
         --init \
         --privileged \
         --network host \

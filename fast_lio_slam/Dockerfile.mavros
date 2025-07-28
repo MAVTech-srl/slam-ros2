@@ -14,7 +14,8 @@ RUN apt-get update \
     geographiclib-tools \
     libgeographic-dev \
     libeigen-stl-containers-dev \
-    ros-humble-mavros
+    ros-humble-mavros \
+    ros-humble-sensor-msgs
 
 RUN pip install future lxml
 
