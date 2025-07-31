@@ -16,6 +16,8 @@ help()
 Usage: bash start_docker_slam_avia.sh [OPTION]
 [OPTION] are:
    --external-monitor    [=yes/no]      Execute with a plugged external monitor. This will enable Rviz2 (default 'no')
+   --save-pcd-cloud
+   --save-utm-pcd-cloud
    -h, --help                           Print this help"
    exit 0
 }
@@ -24,6 +26,12 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --external-monitor=*)
       EXTERNAL_MONITOR="${1#*=}"
+      ;;
+    --save-pcd-cloud=*)
+      SAVE_PCD_CLOUD="${1#*=}"
+      ;;
+    --save-utm-pcd-cloud=*)
+      SAVE_UTM_PCD_CLOUD="${1#*=}"
       ;;
     --help|-h)
       help
@@ -48,6 +56,16 @@ if [ "$EXTERNAL_MONITOR" = "yes" ]; then
     echo "Rviz Running"
 fi
 
+LOCAL_PCD_USE=False
+if [ "$SAVE_PCD_CLOUD" = "yes" ]; then
+    LOCAL_PCD_USE=True
+fi
+
+UTM_PCD_USE=False
+if [ "$SAVE_UTM_PCD_CLOUD" = "yes" ]; then
+    UTM_PCD_USE=True
+fi
+
 DOCKER_ARGS+=("-v /tmp/:/tmp/")
 REMOTE_USER=rosdev
 DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
@@ -64,7 +82,7 @@ if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py rviz:=$RVIZ_USE sigterm_timeout:=3
+        ghcr.io/mavtech-srl/fast-lio-slam:0.4-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py rviz:=$RVIZ_USE save_pcd_cloud:=$LOCAL_PCD_USE save_UTM_pcd_cloud:=$UTM_PCD_USE sigterm_timeout:=3
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
     docker run --rm \
         --init \
@@ -73,5 +91,5 @@ elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.4-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py rviz:=$RVIZ_USE sigterm_timeout:=3
+        ghcr.io/mavtech-srl/fast-lio-slam:0.4-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py rviz:=$RVIZ_USE save_pcd_cloud:=$LOCAL_PCD_USE save_UTM_pcd_cloud:=$UTM_PCD_USE sigterm_timeout:=3
 fi
