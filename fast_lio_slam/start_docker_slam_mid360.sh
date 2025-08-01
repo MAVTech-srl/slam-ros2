@@ -70,8 +70,6 @@ DOCKER_ARGS+=("-v /tmp/:/tmp/")
 REMOTE_USER=rosdev
 DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
 DOCKER_ARGS+=("--pid=host")
- 
-mkdir -p Desktop/rosbag
 
 PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
