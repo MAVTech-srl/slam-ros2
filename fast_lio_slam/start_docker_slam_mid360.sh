@@ -69,7 +69,7 @@ if [ "$SAVE_UTM_PCD_CLOUD" = "yes" ]; then
     UTM_PCD_USE=True
 fi
 
-CONVERT_LIVOX_CLOUD=False
+CONVERT=False
 if [ "$CONVERT_LIVOX_CLOUD" = "yes" ]; then
     CONVERT=True
 fi
