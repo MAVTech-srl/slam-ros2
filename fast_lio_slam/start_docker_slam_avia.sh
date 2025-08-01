@@ -33,6 +33,9 @@ while [ $# -gt 0 ]; do
     --save-utm-pcd-cloud=*)
       SAVE_UTM_PCD_CLOUD="${1#*=}"
       ;;
+    --convert-livox-cloud=*)
+      CONVERT_LIVOX_CLOUD="${1#*=}"
+      ;;
     --help|-h)
       help
       ;;
@@ -66,6 +69,11 @@ if [ "$SAVE_UTM_PCD_CLOUD" = "yes" ]; then
     UTM_PCD_USE=True
 fi
 
+CONVERT_LIVOX_CLOUD=False
+if [ "$CONVERT_LIVOX_CLOUD" = "yes" ]; then
+    CONVERT=True
+fi
+
 REMOTE_USER=rosdev
 DOCKER_ARGS+=("-v /tmp/:/tmp/")
 DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
@@ -83,7 +91,12 @@ if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.5-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py rviz:=$RVIZ_USE save_pcd_cloud:=$LOCAL_PCD_USE save_UTM_pcd_cloud:=$UTM_PCD_USE sigterm_timeout:=10
+        ghcr.io/mavtech-srl/fast-lio-slam:0.5-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py \
+              rviz:=$RVIZ_USE \
+              save_pcd_cloud:=$LOCAL_PCD_USE \
+              save_UTM_pcd_cloud:=$UTM_PCD_USE \
+              convert_livox_cloud:=$CONVERT \
+              sigterm_timeout:=10
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
     echo "Running Jetson image"
     docker run --rm \
@@ -93,5 +106,10 @@ elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.5-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py rviz:=$RVIZ_USE save_pcd_cloud:=$LOCAL_PCD_USE save_UTM_pcd_cloud:=$UTM_PCD_USE sigterm_timeout:=10
+        ghcr.io/mavtech-srl/fast-lio-slam:0.5-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py \
+              rviz:=$RVIZ_USE \
+              save_pcd_cloud:=$LOCAL_PCD_USE \
+              save_UTM_pcd_cloud:=$UTM_PCD_USE \
+              convert_livox_cloud:=$CONVERT \
+              sigterm_timeout:=10
 fi
