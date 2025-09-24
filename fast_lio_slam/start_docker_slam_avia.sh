@@ -91,7 +91,7 @@ if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.5-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py \
+        ghcr.io/mavtech-srl/fast-lio-slam:0.5.1-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py \
               rviz:=$RVIZ_USE \
               save_pcd_cloud:=$LOCAL_PCD_USE \
               save_UTM_pcd_cloud:=$UTM_PCD_USE \
@@ -106,7 +106,7 @@ elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.5-dev ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py \
+        ghcr.io/mavtech-srl/fast-lio-slam:0.5.1 ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py \
               rviz:=$RVIZ_USE \
               save_pcd_cloud:=$LOCAL_PCD_USE \
               save_UTM_pcd_cloud:=$UTM_PCD_USE \
