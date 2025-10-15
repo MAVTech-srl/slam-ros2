@@ -84,7 +84,7 @@ WORKDIR /home/${USERNAME}/ros2_ws
 RUN echo "Update git repos"
 
 RUN mkdir -p src && cd src/ && \
-    git clone https://github.com/MAVTech-srl/FAST_LIO_ROS2.git --recursive ./fast_lio
+    git clone https://github.com/MAVTech-srl/FAST_LIO_ROS2.git --recursive --branch devel ./fast_lio
     
 RUN git clone https://github.com/MAVTech-srl/livox_avia_ros2_driver.git --branch devel ./src/livox_avia_ros2_driver
 
@@ -98,9 +98,9 @@ RUN git clone https://github.com/ros-geographic-info/geographic_info.git --branc
 
 RUN git clone https://github.com/ros/diagnostics.git --branch ros2-humble ./src/diagnostics
 
-RUN git clone https://github.com/ros2-gbp/mavlink-gbp-release.git --branch release/humble/mavlink ./src/mavlink
+RUN git clone https://github.com/ros2-gbp/mavlink-gbp-release.git --branch release/jazzy/mavlink ./src/mavlink
 
-RUN git clone https://github.com/mavlink/mavros.git --branch ros2 ./src/mavros
+RUN git clone https://github.com/MAVTech-srl/mavros.git --branch ros2 ./src/mavros
 
 RUN source /opt/ros/humble/install/setup.sh && colcon build
 

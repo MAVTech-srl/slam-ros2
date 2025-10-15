@@ -14,8 +14,10 @@ RUN apt-get update \
     geographiclib-tools \
     libgeographic-dev \
     libeigen-stl-containers-dev \
-    ros-humble-mavros \
-    ros-humble-sensor-msgs
+    ros-humble-sensor-msgs \
+    ros-humble-geographic-info \
+    ros-humble-diagnostics \
+    libasio-dev
 
 RUN pip install future lxml
 
@@ -24,8 +26,14 @@ RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/in
 RUN chmod +x install_geographiclib_datasets.sh
 RUN ./install_geographiclib_datasets.sh
 
+WORKDIR /usr/src/mavros_ws
+RUN git clone https://github.com/ros2-gbp/mavlink-gbp-release.git --branch release/jazzy/mavlink ./src/mavlink
+RUN git clone https://github.com/MAVTech-srl/mavros.git --branch ros2 ./src/mavros
+
+RUN . /opt/ros/humble/setup.sh && colcon build
+
 ENV SHELL="/bin/bash"
 
 COPY ./mavros_entrypoint.sh /
-ENTRYPOINT [ "/bin/bash", "mavros_entrypoint.sh" ]
+ENTRYPOINT [ "/bin/bash", "/mavros_entrypoint.sh" ]
 CMD ["bash"]
