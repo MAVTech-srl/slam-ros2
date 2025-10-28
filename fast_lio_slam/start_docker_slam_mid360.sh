@@ -78,6 +78,8 @@ DOCKER_ARGS+=("-v /tmp/:/tmp/")
 REMOTE_USER=rosdev
 DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
 DOCKER_ARGS+=("--pid=host")
+SLAM_MID360_CONFIG_PATH=$(echo "${PWD}/scripts/slam-ros2/fast_lio_slam/config/mid360.yaml")           # Config file with SLAM parameters related to Livox Avia Lidar
+DOCKER_ARGS+=("-v ${SLAM_MID360_CONFIG_PATH}:/home/${REMOTE_USER}/ros2_ws/install/fast_lio/share/fast_lio/config/mid360.yaml")
 
 PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image

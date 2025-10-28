@@ -69,7 +69,7 @@ if [ "$SAVE_UTM_PCD_CLOUD" = "yes" ]; then
     UTM_PCD_USE=True
 fi
 
-CONVERT_LIVOX_CLOUD=False
+CONVERT=False
 if [ "$CONVERT_LIVOX_CLOUD" = "yes" ]; then
     CONVERT=True
 fi
@@ -79,7 +79,9 @@ DOCKER_ARGS+=("-v /tmp/:/tmp/")
 DOCKER_ARGS+=("-v ${HOME}/Desktop/rosbag:/home/${REMOTE_USER}/ros2_ws/rosbag")
 DOCKER_ARGS+=("--pid=host") 
 LIDAR_CONFIG_PATH=$(echo "${PWD}/scripts/slam-ros2/fast_lio_slam/config/livox_lidar_config.json")
+SLAM_AVIA_CONFIG_PATH=$(echo "${PWD}/scripts/slam-ros2/fast_lio_slam/config/avia.yaml")           # Config file with SLAM parameters related to Livox Avia Lidar
 DOCKER_ARGS+=("-v ${LIDAR_CONFIG_PATH}:/home/${REMOTE_USER}/ros2_ws/install/livox_ros2_driver/share/livox_ros2_driver/config/livox_lidar_config.json")
+DOCKER_ARGS+=("-v ${SLAM_AVIA_CONFIG_PATH}:/home/${REMOTE_USER}/ros2_ws/install/fast_lio/share/fast_lio/config/avia.yaml")
  
 PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
