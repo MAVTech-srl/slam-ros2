@@ -1,29 +1,34 @@
 /**:
     ros__parameters:
+        use_sim_time: false
         feature_extract_enable: false
         point_filter_num: 3
-        max_iteration: 3
+        max_iteration: 10
         filter_size_surf: 0.5
         filter_size_map: 0.5
         cube_side_length: 1000.0
-        runtime_pos_log_enable: false
+        runtime_pos_log_enable: false #true
         map_file_path: "./test.pcd"
 
         common:
-            lid_topic:  "/livox/lidar"
-            imu_topic:  "/livox/imu"
-            time_sync_en: true         # ONLY turn on when external time synchronization is really not possible
+            # lid_topic: "/livox/lidar/points" # Only for Gazebo SITL
+            # imu_topic: "/livox/lidar/imu" # Only for Gazebo SITL
+            lid_topic: "/livox/lidar"
+            imu_topic: "/livox/imu"
+            # odom_topic: "/mavros/local_position/odom"
+            odom_topic: "/mavros/odometry/in"       # Use this topic if you want to use as R the covariance of the PX4 ekf2 filter
+            time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
             time_offset_lidar_to_imu: 0.0 # Time offset between lidar and IMU calibrated by other algorithms, e.g. LI-Init (can be found in README).
                                         # This param will take effect no matter what time_sync_en is. So if the time offset is not known exactly, please set as 0.0
 
         preprocess:
-            lidar_type: 1   # 4 = Force it to use ROS Pointcloud2                # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR, 
+            lidar_type: 1   # 5 = Force it to use ROS Pointcloud2                # 1 for Livox AVIA, 2 for Velodyne LiDAR, 3 for ouster LiDAR, 
             scan_line: 6
             blind: 0.1 #4.0
 
         mapping:
-            acc_cov: 0.1
-            gyr_cov: 0.1
+            acc_cov: 0.01
+            gyr_cov: 0.01
             b_acc_cov: 0.0001
             b_gyr_cov: 0.0001
             fov_degree:    90.0
@@ -33,10 +38,18 @@
             extrinsic_R: [ 1., 0., 0.,
                         0., 1., 0.,
                         0., 0., 1.]
-            measurement_noise_covariance_x: 0.1
-            measurement_noise_covariance_y: 0.1
+            measurement_noise_covariance_x: 0.005
+            measurement_noise_covariance_y: 0.005
             measurement_noise_covariance_z: 0.1
-            use_ekf2_covariance: false
+            measurement_noise_covariance_vel_x: 0.01
+            measurement_noise_covariance_vel_y: 0.01
+            measurement_noise_covariance_vel_z: 0.2 
+            measurement_noise_covariance_q_x: 0.2
+            measurement_noise_covariance_q_y: 0.2
+            measurement_noise_covariance_q_z: 0.2
+            use_ekf2_covariance: true      # It should be false when using /mavros/local_position/odom
+            use_odometry_in: true          # Use /mavros/odometry/in instead of /mavros/local_position/odom as px4 odometry topic
+            lidar_covariance: 0.001
 
         publish:
             path_en:  false

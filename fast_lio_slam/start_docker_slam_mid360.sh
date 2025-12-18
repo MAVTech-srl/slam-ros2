@@ -16,8 +16,9 @@ help()
 Usage: bash start_docker_slam_avia.sh [OPTION]
 [OPTION] are:
    --external-monitor    [=yes/no]      Execute with a plugged external monitor. This will enable Rviz2 (default 'no')
-   --save-pcd-cloud
-   --save-utm-pcd-cloud
+   --save-pcd-cloud      [=yes/no]
+   --save-utm-pcd-cloud  [=yes/no]
+   --tag=<tag>                          Container tag.
    -h, --help                           Print this help"
    exit 0
 }
@@ -36,6 +37,9 @@ while [ $# -gt 0 ]; do
     --convert-livox-cloud=*)
       CONVERT_LIVOX_CLOUD="${1#*=}"
       ;;
+    --tag=*)
+      TAG="${1#*=}"
+      ;;
     --help|-h)
       help
       ;;
@@ -45,6 +49,12 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+# Check if a tag was provided
+if [[ -z "$TAG" ]]; then
+    echo "No tag specified. Aborted."
+    exit 1
+fi
 
 RVIZ_USE=False
 if [ "$EXTERNAL_MONITOR" = "yes" ]; then
@@ -83,19 +93,26 @@ DOCKER_ARGS+=("-v ${SLAM_MID360_CONFIG_PATH}:/home/${REMOTE_USER}/ros2_ws/instal
 
 PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
-    docker run --rm \
-        --init \
-        --privileged \
-        --network host \
-        --ipc=host \
-        ${DOCKER_ARGS[@]} \
-        --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.6.1-rasp-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py \
-              rviz:=$RVIZ_USE \
-              save_pcd_cloud:=$LOCAL_PCD_USE \
-              save_UTM_pcd_cloud:=$UTM_PCD_USE \
-              convert_livox_cloud:=$CONVERT \
-              sigterm_timeout:=10
+    # Check if the tag contains "rasp"
+    if [[ $TAG =~ "rasp" ]]; then
+      echo "Running Raspberry image"
+      docker run --rm \
+          --init \
+          --privileged \
+          --network host \
+          --ipc=host \
+          ${DOCKER_ARGS[@]} \
+          --name fast-lio-slam \
+          ghcr.io/mavtech-srl/fast-lio-slam:$TAG ros2 launch --noninteractive src/slam_tools/launch/slam_avia.launch.py \
+                rviz:=$RVIZ_USE \
+                save_pcd_cloud:=$LOCAL_PCD_USE \
+                save_UTM_pcd_cloud:=$UTM_PCD_USE \
+                convert_livox_cloud:=$CONVERT \
+                sigterm_timeout:=10
+    else
+      echo "This container is NOT compatible with Raspberry!"
+      exit 1
+    fi
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
     docker run --rm \
         --init \
@@ -104,7 +121,7 @@ elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
         --ipc=host \
         ${DOCKER_ARGS[@]} \
         --name fast-lio-slam \
-        ghcr.io/mavtech-srl/fast-lio-slam:0.6.1-dev ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py \
+        ghcr.io/mavtech-srl/fast-lio-slam:$TAG ros2 launch --noninteractive src/slam_tools/launch/slam.launch.py \
               rviz:=$RVIZ_USE \
               save_pcd_cloud:=$LOCAL_PCD_USE \
               save_UTM_pcd_cloud:=$UTM_PCD_USE \
