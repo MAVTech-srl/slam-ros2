@@ -95,7 +95,7 @@ PLATFORM=$(cat /proc/cpuinfo | grep 'Model' | awk '{print $3}')
 if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
     # Check if the tag contains "rasp"
     if [[ $TAG =~ "rasp" ]]; then
-      echo "Running Raspberry image"
+      echo "Running Raspberry image with tag $TAG"
       docker run --rm \
           --init \
           --privileged \
@@ -114,6 +114,7 @@ if [ "$PLATFORM" = "Raspberry" ]; then # Run Raspberry image
       exit 1
     fi
 elif [ -f /etc/nv_tegra_release ]; then # Run Jetson docker image
+    echo "Running Jetson image with tag $TAG"
     docker run --rm \
         --init \
         --privileged \
