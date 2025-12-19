@@ -94,14 +94,6 @@ RUN git clone https://github.com/ros-perception/perception_pcl.git --branch humb
 
 RUN git clone https://github.com/MAVTech-srl/slam_tools.git ./src/slam_tools
 
-RUN git clone https://github.com/ros-geographic-info/geographic_info.git --branch ros2 ./geographic_info
-
-RUN git clone https://github.com/ros/diagnostics.git --branch ros2-humble ./src/diagnostics
-
-RUN git clone https://github.com/ros2-gbp/mavlink-gbp-release.git --branch release/jazzy/mavlink ./src/mavlink
-
-RUN git clone https://github.com/MAVTech-srl/mavros.git --branch ros2 ./src/mavros
-
 RUN source /opt/ros/humble/install/setup.sh && colcon build
 
 RUN mkdir -p rosbag

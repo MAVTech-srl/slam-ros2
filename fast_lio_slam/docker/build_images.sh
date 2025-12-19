@@ -68,15 +68,19 @@ if [ "$IMAGE" = "fast-lio" ]; then
         exit 1
     fi
     if [ "$TARGET" = "jetson" ]; then
-        if [ "$DEV" = true ]; then TAG+="-dev"  # Append "-dev" to tag name
-        docker build --build-arg RECLONE_REPOS=yes -t ghcr.io/mavtech-srl/fast-lio-slam:$TAG -f Dockerfile .
+        if [ "$DEV" = true ]; then 
+          TAG+="-dev"  # Append "-dev" to tag name
+        fi
+        docker build --build-arg RECLONE_REPOS=$(date +%s) -t ghcr.io/mavtech-srl/fast-lio-slam:$TAG -f Dockerfile .
         if [ "$PUSH" = true ]; then
             docker push ghcr.io/mavtech-srl/fast-lio-slam:$TAG
         fi
     elif [ "$TARGET" = "raspberry" ]; then
         TAG+="-rasp"
-        if [ "$DEV" = true ]; then TAG+="-dev"  # Append "-dev" to tag name
-        docker build --build-arg RECLONE_REPOS=yes -t ghcr.io/mavtech-srl/fast-lio-slam:$TAG -f Dockerfile.rasp .
+        if [ "$DEV" = true ]; then 
+          TAG+="-dev"  # Append "-dev" to tag name
+        fi
+        docker build --build-arg RECLONE_REPOS=$(date +%s) -t ghcr.io/mavtech-srl/fast-lio-slam:$TAG -f Dockerfile.rasp .
         if [ "$PUSH" = true ]; then
             docker push ghcr.io/mavtech-srl/fast-lio-slam:$TAG
         fi
