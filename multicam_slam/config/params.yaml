@@ -1,0 +1,34 @@
+multistereo_planning_cloud_node:
+  ros__parameters:
+    num_cameras: 6
+    imu_frame: "imu/base_link"
+    output_topic: "planning/cloud"
+    output_rate_hz: 10.0
+    max_stamp_skew_ms: 5.0
+
+    stereo1_left_topic:  "left/image_rect_raw"
+    stereo1_right_topic: "right/image_rect_raw"
+    stereo2_left_topic:  "cam2/image_rect_raw"
+    stereo2_right_topic: "cam3/image_rect_raw"
+    stereo3_left_topic:  "cam4/image_rect_raw"
+    stereo3_right_topic: "cam5/image_rect_raw"
+
+    # calib_json_path OR calib_json_string
+    calib_json_path: "/ABS/PATH/TO/calib.json"
+
+    image_downscale: 1.0
+    pixel_step: 4
+    depth_min_m: 0.3
+    depth_max_m: 10.0
+    voxel_leaf_m: 0.08
+
+    sgbm_min_disparity: 0
+    sgbm_num_disparities: 128
+    sgbm_block_size: 5
+    sgbm_P1: 200
+    sgbm_P2: 800
+    sgbm_disp12_max_diff: 1
+    sgbm_uniqueness_ratio: 10
+    sgbm_speckle_window_size: 50
+    sgbm_speckle_range: 2
+    sgbm_mode: 2
