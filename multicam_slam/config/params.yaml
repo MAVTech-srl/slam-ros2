@@ -1,10 +1,13 @@
-multistereo_planning_cloud_node:
+/**:
   ros__parameters:
     num_cameras: 6
     imu_frame: "imu/base_link"
     output_topic: "planning/cloud"
-    output_rate_hz: 10.0
-    max_stamp_skew_ms: 5.0
+    output_rate_hz: 2.0
+    max_stamp_skew_ms: 500.0
+    stale_timeout_ms: 1000.0
+    publish_debug_disparity: true
+    disparity_topic_prefix: "debug/disparity"
 
     stereo1_left_topic:  "left/image_rect_raw"
     stereo1_right_topic: "right/image_rect_raw"
@@ -14,16 +17,16 @@ multistereo_planning_cloud_node:
     stereo3_right_topic: "cam5/image_rect_raw"
 
     # calib_json_path OR calib_json_string
-    calib_json_path: "/ABS/PATH/TO/calib.json"
+    calib_json_path: "$6cams_triangle.json"
 
-    image_downscale: 1.0
-    pixel_step: 4
+    image_downscale: 0.5
+    pixel_step: 6
     depth_min_m: 0.3
-    depth_max_m: 10.0
+    depth_max_m: 5.0
     voxel_leaf_m: 0.08
 
     sgbm_min_disparity: 0
-    sgbm_num_disparities: 128
+    sgbm_num_disparities: 64
     sgbm_block_size: 5
     sgbm_P1: 200
     sgbm_P2: 800

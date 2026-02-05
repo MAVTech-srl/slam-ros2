@@ -9,21 +9,21 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <!-- Core ROS2 -->
+  <!-- Core -->
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>sensor_msgs</depend>
 
-  <!-- OpenCV + bridge -->
+  <!-- OpenCV bridge -->
   <depend>cv_bridge</depend>
 
-  <!-- System deps via find_package -->
+  <!-- Eigen is found via CMake; keep this for ROS packaging -->
   <depend>eigen3_cmake_module</depend>
 
-  <!-- Launch -->
+  <!-- Launch files -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>rclcpp_components</exec_depend>
+  <depend>class_loader</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
