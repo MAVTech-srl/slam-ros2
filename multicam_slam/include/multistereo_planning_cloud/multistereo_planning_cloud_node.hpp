@@ -93,6 +93,10 @@ private:
   int sgbm_speckle_rg_ = 2;
   int sgbm_mode_ = (int)cv::StereoSGBM::MODE_SGBM_3WAY;
 
+  double disp_min_px_{4.0};                 // soglia disparità minima (in pixel)
+  double disp_local_thr_px_{1.5};           // tolleranza locale (px)
+  int    disp_local_support_{2};            // quanti vicini devono “concordare”
+
   // ---- calibration
   std::array<PinholeIntrinsics, kMaxCams> K_{};
   std::array<SE3, kMaxCams> T_imu_cam_{};

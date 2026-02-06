@@ -88,7 +88,7 @@ MultiStereoPlanningCloudNode::MultiStereoPlanningCloudNode(const rclcpp::NodeOpt
   calib_json_string_ = this->declare_parameter<std::string>("calib_json_string", "");
 
 
-  imu_frame_    = this->declare_parameter<std::string>("imu_frame", "imu/base_link");
+  imu_frame_    = this->declare_parameter<std::string>("imu_frame", "cam/imu_link");
   output_topic_ = this->declare_parameter<std::string>("output_topic", "planning/cloud");
   stale_timeout_ms_ = this->declare_parameter<double>("stale_timeout_ms", stale_timeout_ms_);
 
@@ -113,6 +113,11 @@ MultiStereoPlanningCloudNode::MultiStereoPlanningCloudNode(const rclcpp::NodeOpt
 
   output_rate_hz_ = this->declare_parameter<double>("output_rate_hz", 10.0);
   max_stamp_skew_ms_ = this->declare_parameter<double>("max_stamp_skew_ms", 5.0);
+
+  disp_min_px_ = this->declare_parameter<double>("disp_min_px", 4.0);
+  disp_local_thr_px_ = this->declare_parameter<double>("disp_local_thr_px", 1.5);
+  disp_local_support_ = this->declare_parameter<int>("disp_local_support", 2);
+
 
   downscale_  = this->declare_parameter<double>("image_downscale", 1.0);
   pixel_step_ = this->declare_parameter<int>("pixel_step", 4);
@@ -403,7 +408,7 @@ void MultiStereoPlanningCloudNode::processStereoPair_(
   int stereo_id,
   std::unordered_map<int64_t, VoxelAcc>& vox)
 {
-  // --- Convert robusto a mono8
+  // --- Convert robust to mono8
   cv::Mat left, right;
   try {
     left  = cv_bridge::toCvShare(left_msg, "mono8")->image;
@@ -411,14 +416,13 @@ void MultiStereoPlanningCloudNode::processStereoPair_(
   } catch (const cv_bridge::Exception& e) {
     RCLCPP_WARN_THROTTLE(
       this->get_logger(), *this->get_clock(), 2000,
-      "Stereo%d: cv_bridge failed to convert to mono8 (%s). encL='%s' encR='%s'",
+      "Stereo%d: cv_bridge mono8 failed: %s (encL='%s' encR='%s')",
       stereo_id + 1, e.what(), left_msg->encoding.c_str(), right_msg->encoding.c_str());
     return;
   }
-
   if (left.empty() || right.empty()) return;
 
-  // --- Downscale (se richiesto)
+  // --- Downscale
   const double scale = std::max(1e-6, downscale_);
   cv::Mat l_ds, r_ds;
   if (std::abs(scale - 1.0) > 1e-6) {
@@ -437,27 +441,7 @@ void MultiStereoPlanningCloudNode::processStereoPair_(
   const int rows = disp16.rows;
   const int cols = disp16.cols;
 
-  // --- Quick stats (min/max + valid ratio sampled)
-  double minv = 0.0, maxv = 0.0;
-  cv::minMaxLoc(disp16, &minv, &maxv);
-
-  int valid = 0, tot = 0;
-  const int sample = 16;  // sampling grosso, costo trascurabile
-  for (int v = 0; v < rows; v += sample) {
-    const int16_t* dptr = disp16.ptr<int16_t>(v);
-    for (int u = 0; u < cols; u += sample) {
-      ++tot;
-      if (dptr[u] > 0) ++valid;
-    }
-  }
-  const double valid_ratio = (tot > 0) ? double(valid) / double(tot) : 0.0;
-
-  RCLCPP_INFO_THROTTLE(
-    this->get_logger(), *this->get_clock(), 2000,
-    "Stereo%d: disp px [min=%.2f max=%.2f] valid~%.3f (scale=%.2f)",
-    stereo_id + 1, minv / 16.0, maxv / 16.0, valid_ratio, scale);
-
-  // --- Publish disparity debug
+  // --- Publish disparity debug (mono8 scaled) (cheap)
   if (publish_debug_disparity_ && pub_disp_[stereo_id]) {
     cv::Mat disp8;
     const double denom = std::max(1, sgbm_num_disp_);
@@ -480,21 +464,57 @@ void MultiStereoPlanningCloudNode::processStereoPair_(
   K.fx *= scale; K.fy *= scale; K.cx *= scale; K.cy *= scale;
 
   const double baseline = baseline_m_[stereo_id];
-  const SE3& T_cam_imu = T_cam_imu_[cam_left_index];
+  const SE3& T_cam_imu  = T_cam_imu_[cam_left_index];
 
   const int step = std::max(1, pixel_step_);
   const double inv_leaf = 1.0 / std::max(1e-6, voxel_leaf_);
 
+  // --- Adaptive disparity min from depth_max_
+  // Keep points up to depth_max_ => disparity must be >= fx*B/depth_max
+  const double disp_min_from_zmax = (K.fx * baseline) / std::max(1e-3, depth_max_);
+  const double disp_min = std::max(0.5, 0.8 * disp_min_from_zmax);   // 0.8 margin
+  const double disp_max = std::max(disp_min + 0.5, (K.fx * baseline) / std::max(1e-3, depth_min_));
+
+  // --- Light texture filter on left (Sobel x)
+  cv::Mat gx16;
+  cv::Sobel(l_ds, gx16, CV_16S, 1, 0, 3);
+  const int grad_thr = 10;  // conservative (raise to filter more)
+
+  // --- Light disparity consistency filter
+  const double disp_consistency_thr = 2.0; // px (raise to keep more)
+
+  // --- Small helpers
+  auto dispAt = [&](int u, int v) -> double {
+    if (u < 0 || u >= cols || v < 0 || v >= rows) return -1.0;
+    const int16_t raw = disp16.at<int16_t>(v, u);
+    if (raw <= 0) return -1.0;
+    return double(raw) / 16.0;
+  };
+
+  size_t cand = 0, kept = 0;
+
   // --- Main loop
-  for (int v = 0; v < rows; v += step) {
+  for (int v = 1; v < rows - 1; v += step) {
     const int16_t* dptr = disp16.ptr<int16_t>(v);
-    for (int u = 0; u < cols; u += step) {
+    for (int u = 1; u < cols - 1; u += step) {
       const int16_t d_raw = dptr[u];
       if (d_raw <= 0) continue;
 
       const double disp = double(d_raw) / 16.0;
-      if (disp < 0.5) continue;
+      if (disp < disp_min || disp > disp_max) continue;
 
+      // texture gate
+      if (std::abs(gx16.at<int16_t>(v, u)) < grad_thr) continue;
+
+      // local disparity consistency (simple 1D check)
+      const double dL = dispAt(u - 1, v);
+      const double dR = dispAt(u + 1, v);
+      if (dL > 0 && dR > 0) {
+        const double davg = 0.5 * (dL + dR);
+        if (std::abs(disp - davg) > disp_consistency_thr) continue;
+      }
+
+      // back-project
       const double z = (K.fx * baseline) / disp;
       if (z < depth_min_ || z > depth_max_) continue;
 
@@ -508,12 +528,21 @@ void MultiStereoPlanningCloudNode::processStereoPair_(
       const int iz = int(std::floor(p_imu.z() * inv_leaf));
 
       const int64_t key = packKey_(ix, iy, iz);
-      auto& acc = vox[key];          // crea se non esiste
+      auto& acc = vox[key];
       acc.sum += p_imu;
       acc.count += 1;
+
+      ++kept;
+      ++cand;
     }
   }
+
+  RCLCPP_INFO_THROTTLE(
+    this->get_logger(), *this->get_clock(), 2000,
+    "Stereo%d: disp_min=%.2f disp_max=%.2f | kept=%zu",
+    stereo_id + 1, disp_min, disp_max, kept);
 }
+
 
 void MultiStereoPlanningCloudNode::publishVoxelCloud_(const std::unordered_map<int64_t, VoxelAcc>& vox,
                                                      const builtin_interfaces::msg::Time& stamp)

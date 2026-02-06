@@ -1,11 +1,12 @@
 /**:
   ros__parameters:
     num_cameras: 6
-    imu_frame: "imu/base_link"
+    imu_frame: "cam/imu_link"
     output_topic: "planning/cloud"
     output_rate_hz: 2.0
     max_stamp_skew_ms: 500.0
-    stale_timeout_ms: 1000.0
+    stale_timeout_ms: 1200.0
+
     publish_debug_disparity: true
     disparity_topic_prefix: "debug/disparity"
 
@@ -16,22 +17,28 @@
     stereo3_left_topic:  "cam4/image_rect_raw"
     stereo3_right_topic: "cam5/image_rect_raw"
 
-    # calib_json_path OR calib_json_string
     calib_json_path: "$6cams_triangle.json"
 
-    image_downscale: 0.5
-    pixel_step: 6
-    depth_min_m: 0.3
-    depth_max_m: 5.0
-    voxel_leaf_m: 0.08
+    # --- sampling / cloud density ---
+    image_downscale: 1.0
+    pixel_step: 8              # da 6 -> 8 (meno punti, più stabile)
+    depth_min_m: 0.5           # da 0.3 -> 0.5 (taglia vicino rumoroso)
+    depth_max_m: 3.5           # da 5.0 -> 3.5 (taglia lontano rumoroso)
+    voxel_leaf_m: 0.12         # da 0.08 -> 0.12 (più “ripulitura”)
 
+    # --- disparity confidence gating ---
+    disp_min_px: 15.0          # da 6 -> 10 (tiene punti con più confidenza)
+    disp_local_thr_px: 0.1     # da 1.5 -> 0.8 (richiede coerenza locale)
+    disp_local_support: 10      # da 2 -> 3 (più supporto locale)
+
+    # --- SGBM tuning (più robusto, meno outlier) ---
     sgbm_min_disparity: 0
     sgbm_num_disparities: 64
-    sgbm_block_size: 5
-    sgbm_P1: 200
-    sgbm_P2: 800
-    sgbm_disp12_max_diff: 1
-    sgbm_uniqueness_ratio: 10
-    sgbm_speckle_window_size: 50
-    sgbm_speckle_range: 2
+    sgbm_block_size: 10         # da 5 -> 7 (più smooth, meno noise)
+    sgbm_P1: 392               # 8 * 7*7
+    sgbm_P2: 1568              # 32 * 7*7
+    sgbm_disp12_max_diff: 0    # più severo L/R consistency
+    sgbm_uniqueness_ratio: 120  # da 10 -> 20 (filtra match ambigui)
+    sgbm_speckle_window_size: 250  # da 50 -> 100 (rimuove “blob”)
+    sgbm_speckle_range: 1      # da 2 -> 1 (più severo)
     sgbm_mode: 2
