@@ -55,7 +55,7 @@
 namespace okvis
 {
 
-static const int cameraInputQueueSize = 20;
+static const int cameraInputQueueSize = 40;
 
 // overlap of imu data before and after two consecutive frames [seconds]:
 static const double imuTemporalOverlap = 0.02;
@@ -211,7 +211,7 @@ bool ThreadedSlam::addImuMeasurement(const okvis::Time& stamp,
   imu_measurement.measurement.gyroscopes = omega;
   imu_measurement.timeStamp = stamp;
 
-  const int imuQueueSize = 500;
+  const int imuQueueSize = 200;
 
   if(realtimePropagation_) {
      imuMeasurementsReceivedPropagate_.PushNonBlockingDroppingIfFull(

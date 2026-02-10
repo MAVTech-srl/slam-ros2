@@ -191,7 +191,7 @@ class Publisher
   okvis::Trajectory trajectory_; ///< Underlying trajectory object for state queries.
   okvis::kinematics::Transformation T_BS_; ///< Body-IMU transform.
   visualization_msgs::msg::Marker meshMsg_; ///< Mesh message.
-  double odometryPublishingRate_; ///< Publishing rate for realtime propagation.
+  double odometryPublishingRate_ = 30.0; ///< Publishing rate for realtime propagation.
   okvis::Time lastTime_ = okvis::Time(0); ///< Keep track of last publishing (to maintain rate).
 
   /// @}

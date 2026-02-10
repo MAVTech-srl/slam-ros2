@@ -146,6 +146,8 @@ bool Publisher::realtimePredictAndPublish(const okvis::Time& stamp,
                          const Eigen::Vector3d& alpha,
                          const Eigen::Vector3d& omega) {
 
+  //LOG(INFO) <<  "Entering predict and publish 2";
+
   // store in any case
   imuMeasurements_.push_back(ImuMeasurement(stamp, ImuSensorReadings(omega,alpha)));
 
@@ -172,13 +174,29 @@ bool Publisher::realtimePredictAndPublish(const okvis::Time& stamp,
   } else {
     return false;
   }
+  //   // --- DEBUG odometry publishing gate ---
+  // const double dt = (state.timestamp - lastTime_).toSec();
+  // const double minDt = 1.0 / double(odometryPublishingRate_);
 
-  // only publish according to rate
-  if((state.timestamp - lastTime_).toSec()
-      < (1.0/double(odometryPublishingRate_))) {
-    return false;
-  }
-  lastTime_ = state.timestamp;
+  // // stamp details (in case of sim time / zero time / jumps)
+  // LOG(INFO) << "[odom_gate] state.ts = "
+  //           << state.timestamp.sec << "." << state.timestamp.nsec
+  //           << "  lastTime_ = " << lastTime_.sec << "." << lastTime_.nsec
+  //           << "  dt=" << std::fixed << dt
+  //           << "  minDt=" << minDt
+  //           << "  rate=" << odometryPublishingRate_;
+
+  // if (dt < minDt) {
+  //   LOG(INFO) << "[odom_gate] BLOCK publish: dt(" << dt << ") < minDt(" << minDt << ")";
+  //   return false;
+  // }
+
+  // LOG(INFO) << "[odom_gate] PASS publish: dt(" << dt << ") >= minDt(" << minDt << ")";
+  // lastTime_ = state.timestamp;
+  // LOG(INFO) << "[odom_gate] lastTime_ updated -> "
+  //           << lastTime_.sec << "." << lastTime_.nsec;
+
+  // LOG(INFO) << "Entering predict and publish 4";
 
   rclcpp::Time t(state.timestamp.sec, state.timestamp.nsec); // Header timestamp.
   const okvis::kinematics::Transformation T_WS = state.T_WS;

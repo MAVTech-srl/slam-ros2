@@ -52,6 +52,8 @@ target_link_libraries(${LIB_NAME}
     okvis::Util
     brisk::brisk
     ${DBoW2_LIBRARIES}
+    ${OpenCV_LIBS} 
+    opencv_video
   PRIVATE
     ${GLOG_LIBRARIES}
     ${OPENGV_LIBRARIES}
@@ -73,6 +75,7 @@ if(USE_NN)
     target_compile_definitions(${LIB_NAME} PUBLIC OKVIS_USE_GPU)
   endif()
 endif()
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d video)
 add_library(okvis::Frontend ALIAS ${LIB_NAME})
 
 # the DBoW2 pre-built vocabulary

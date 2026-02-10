@@ -31,7 +31,7 @@ cameras:
 camera_parameters:
     timestamp_tolerance: 0.1 # [s] stereo frame out-of-sync tolerance
     image_delay: 0.0 # [s] timestamp_camera_correct = timestamp_camera - image_delay
-    sync_cameras: [0,1] # the cameras that will be synchronised
+    sync_cameras: [] # the cameras that will be synchronised
     online_calibration: # some parameters to set the online 
         do_extrinsics: false # Do we online-calibrate extrinsics?
         do_extrinsics_final_ba: false # Do we calibrate extrinsics in final BA?
@@ -63,11 +63,11 @@ imu_parameters:
 # frontend: detection etc. 
 frontend_parameters:
     detection_threshold: 35.0 # detection threshold. By default the uniformity radius in pixels
-    absolute_threshold: 7.0 # absolute Harris corner threshold (noise floor)
+    absolute_threshold: 5.0 # absolute Harris corner threshold (noise floor)
     matching_threshold: 60.0 # BRISK descriptor matching threshold
     octaves: 0 # number of octaves for detection. 0 means single-scale at highest resolution
-    max_num_keypoints: 200 # restrict to a maximum of this many keypoints per image (strongest ones) 400
-    keyframe_overlap: 0.55 # minimum field-of-view overlap 0.55
+    max_num_keypoints: 300 # restrict to a maximum of this many keypoints per image (strongest ones) 400
+    keyframe_overlap: 0.75 # minimum field-of-view overlap 0.55
     use_cnn: false # whether to use the segmentation CNN
     parallelise_detection: true
     num_matching_threads: 2
@@ -81,7 +81,7 @@ estimator_parameters:
     do_final_ba: false # Whether to run a full final BA
     enforce_realtime: false # whether to limit the time budget for optimisation 
     realtime_min_iterations: 3 # minimum number of iterations always performed
-    realtime_max_iterations: 5 # never do more than these, even if not converged
+    realtime_max_iterations: 10 # never do more than these, even if not converged
     realtime_time_limit: 0.04 # time budget for realtime optimisation [s]
     realtime_num_threads: 4 # number of threads for the realtime optimisation
     full_graph_iterations: 1 # don't do more than these for the full (background) optimisation

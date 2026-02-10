@@ -172,9 +172,11 @@ void Subscriber::imuCallback(const sensor_msgs::msg::Imu& msg)
   
   // forward to estimator
   viInterface_->addImuMeasurement(timestamp, acc, gyr);
+
+  //LOG(INFO) <<  "Entering predict and publish";
   
    // also forward for realtime prediction
-  if(publisher_) {
+  if(true) {
     publisher_->realtimePredictAndPublish(timestamp, acc, gyr);
   }
 }
