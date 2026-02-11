@@ -145,6 +145,11 @@ bool ThreadedSlam::addImages(const okvis::Time & stamp,
   // timestamp_camera_correct = timestamp_camera - image_delay
   const Time stampCorrected = stamp - Duration(parameters_.camera.image_delay);
 
+  // static uint64_t dropCount = 0;
+  // dropCount++;
+  // LOG(WARNING) << "frame drop (queue full). dropCount=" << dropCount
+  //             << " stamp=" << stampCorrected;
+
   // assemble frame
   const size_t numCameras = parameters_.nCameraSystem.numCameras();
   std::vector<okvis::CameraMeasurement> frames(numCameras);
@@ -185,8 +190,12 @@ bool ThreadedSlam::addImages(const okvis::Time & stamp,
   }
   else
   {
-    if(cameraMeasurementsReceived_.PushNonBlockingDroppingIfFull(frames, cameraInputQueueSize)) {
-      LOG(WARNING) << "frame drop ";
+    const size_t qsize = cameraMeasurementsReceived_.Size();  // se esiste
+    const bool dropped = cameraMeasurementsReceived_.PushNonBlockingDroppingIfFull(frames, cameraInputQueueSize);
+    if(dropped) {
+      LOG(WARNING) << "frame drop (queue_size=" << qsize
+                  << ", cap=" << cameraInputQueueSize
+                  << ", t=" << stampCorrected << ")";
       return false;
     }
     return true;
@@ -272,6 +281,11 @@ bool ThreadedSlam::processFrame() {
   MultiFramePtr multiFrame;
   ImuMeasurement imuMeasurement;
   const size_t numCameras = parameters_.nCameraSystem.numCameras();
+  static bool haveLastStamp = false;
+  static okvis::Time lastStamp;
+  const okvis::Time t0 = okvis::Time::now();
+
+  double frame_dt = 0.0;
 
   kinematics::Transformation T_WS;
   SpeedAndBias speedAndBias;
@@ -287,6 +301,13 @@ bool ThreadedSlam::processFrame() {
     if(!getNextFrame(multiFrame)) {
       return false;
     }
+
+    if (haveLastStamp) {
+      frame_dt = (multiFrame->timestamp() - lastStamp).toSec();
+    }
+    lastStamp = multiFrame->timestamp();
+    haveLastStamp = true;
+
 
     if(parameters_.imu.use) {
       if(multiFrame->timestamp()-Duration(imuTemporalOverlap) <= imuMeasurement.timeStamp) {
@@ -324,11 +345,22 @@ bool ThreadedSlam::processFrame() {
     if(!getNextFrame(multiFrame)) {
       if(optimisationThread_.joinable()) {
         // in the very beginning, we can't join because it was not started
+        const okvis::Time tj0 = okvis::Time::now();
         optimisationThread_.join();
+        LOG(INFO) << "optimisationThread join dt=" << (okvis::Time::now() - tj0).toSec();
       }
 
       return false;
     }
+
+    if (haveLastStamp) {
+      frame_dt = (multiFrame->timestamp() - lastStamp).toSec();
+    }
+    lastStamp = multiFrame->timestamp();
+    haveLastStamp = true;
+
+
+
     // now get all relevant IMU measurements we have received thus far
     if(parameters_.imu.use) {
       while(!shutdown_ && imuMeasurementDeque_.back().timeStamp <
@@ -464,9 +496,12 @@ bool ThreadedSlam::processFrame() {
   }
 
   // IMPORTANT: the matcher needs the optimiser to be finished:
+  auto tJoin0 = Time::now();
   if(optimisationThread_.joinable()) {
     // in the very beginning, we can't join because it was not started
+    const okvis::Time tj0 = okvis::Time::now();
     optimisationThread_.join();
+    LOG(INFO) << "optimisationThread join dt=" << (okvis::Time::now() - tj0).toSec();
   }
 
   // now store last optimised state for later use
@@ -567,6 +602,7 @@ bool ThreadedSlam::processFrame() {
 
   return true;
 }
+
 
 void ThreadedSlam::optimisePublishMarginalise(MultiFramePtr multiFrame,
                                               const Eigen::Vector3d& gyroReading) {

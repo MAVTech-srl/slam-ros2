@@ -129,9 +129,9 @@ bool DatasetWriter::addImages(const Time &stamp,
   }
 
   const int cameraInputQueueSize = 100;
-  if(cameraMeasurementsReceived_.PushNonBlockingDroppingIfFull(frames, cameraInputQueueSize)) {
-    LOG(WARNING) << "frame drop";
-  }
+  // if(cameraMeasurementsReceived_.PushNonBlockingDroppingIfFull(frames, cameraInputQueueSize)) {
+  //   //LOG(WARNING) << "frame drop";
+  // }
   return true;
 }
 
