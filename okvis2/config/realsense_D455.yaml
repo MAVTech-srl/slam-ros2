@@ -86,7 +86,7 @@ frontend_parameters:
     keyframe_overlap: 0.85 # minimum field-of-view overlap 0.55
     use_cnn: false # whether to use the segmentation CNN
     parallelise_detection: true
-    num_matching_threads: 2
+    num_matching_threads: 3
 
 # estimator parameters
 estimator_parameters:
@@ -101,7 +101,7 @@ estimator_parameters:
     realtime_time_limit: 0.04 # time budget for realtime optimisation [s]
     realtime_num_threads: 4 # number of threads for the realtime optimisation
     full_graph_iterations: 1 # don't do more than these for the full (background) optimisation
-    full_graph_num_threads: 2 # number of threads for the full (background) optimisation
+    full_graph_num_threads: 4 # number of threads for the full (background) optimisation
     p_dbow: 0.4 # Match threshold for dBoW -- unfortunately this varies with setups.
     drift_percentage_heuristic: 1.35 # % allowed drift in loop closures rel. to dist. travelled.
 

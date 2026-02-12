@@ -68,6 +68,11 @@
 #include <okvis/kinematics/Transformation.hpp>
 #include <okvis/ros2/Publisher.hpp>
 
+#include <atomic>
+#include <condition_variable>
+#include <thread>
+
+
 /// \brief okvis Main namespace of this package.
 namespace okvis {
 
@@ -119,6 +124,25 @@ class Subscriber
   std::vector<image_transport::Subscriber> imageSubscribers_; ///< The image message subscriber.
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subImu_;  ///< The IMU message subscriber.
   std::mutex time_mutex_; ///< Lock when accessing time
+  rclcpp::CallbackGroup::SharedPtr cbg_img_;
+  rclcpp::CallbackGroup::SharedPtr cbg_imu_;
+
+  // buffering + sync thread
+  std::mutex buf_mtx_;
+  std::condition_variable buf_cv_;
+  std::atomic<bool> running_{false};
+  std::thread sync_thread_;
+
+  std::vector<std::map<uint64_t, cv::Mat>> img_buf_;  // per-cam: t_ns -> image
+  uint64_t last_accepted_ns_{0};
+
+  // params
+  double sync_thr_s_ = 0.01;      // 10 ms
+  double target_hz_  = 15.0;      // << abbassa rispetto a 15
+  size_t max_buf_per_cam_ = 80;   // evita crescita infinita
+
+  void syncLoop();
+  void dropOldestUnlocked(size_t cam, size_t n);
 
   /// @}
   

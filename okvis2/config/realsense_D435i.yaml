@@ -76,7 +76,7 @@ frontend_parameters:
 estimator_parameters:
     num_keyframes: 5 # number of keyframes in optimisation window
     num_loop_closure_frames: 0 # number of loop closure frames in optimisation window
-    num_imu_frames: 3  # number of frames linked by most recent nonlinear IMU error terms
+    num_imu_frames: 5  # number of frames linked by most recent nonlinear IMU error terms
     do_loop_closures: false # whether to do VI-SLAM or VIO
     do_final_ba: false # Whether to run a full final BA
     enforce_realtime: false # whether to limit the time budget for optimisation 

@@ -1,185 +1,259 @@
-/*********************************************************************************
- *  OKVIS - Open Keyframe-based Visual-Inertial SLAM
- *  Copyright (c) 2015, Autonomous Systems Lab / ETH Zurich
- *  Copyright (c) 2020, Smart Robotics Lab / Imperial College London
- *  Copyright (c) 2024, Smart Robotics Lab / Technical University of Munich
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions are met:
- *
- *   * Redistributions of source code must retain the above copyright notice,
- *     this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright notice,
- *     this list of conditions and the following disclaimer in the documentation
- *     and/or other materials provided with the distribution.
- *   * Neither the name of Autonomous Systems Lab, ETH Zurich, Smart Robotics Lab,
- *     Imperial College London, Technical University of Munich, nor the names of
- *     its contributors may be used to endorse or promote products derived from
- *     this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *********************************************************************************/
+// Subscriber.cpp (ROS2) - robust version
+#include <cmath>
+#include <map>
+#include <mutex>
+#include <thread>
+#include <condition_variable>
+#include <atomic>
+#include <vector>
+#include <limits>
 
-/**
- * @file Subscriber.cpp
- * @brief Source file for the Subscriber class.
- * @author Stefan Leutenegger
- * @author Andreas Forster
- */
- 
 #include <glog/logging.h>
+
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <image_transport/image_transport.hpp>
+#include <opencv2/core/core.hpp>
+
 #include <okvis/ros2/Subscriber.hpp>
 
-#define OKVIS_THRESHOLD_SYNC 0.01 ///< Sync threshold in seconds.
-
-/// \brief okvis Main namespace of this package.
 namespace okvis {
 
-Subscriber::~Subscriber()
-{
-}
+static constexpr double DEFAULT_SYNC_THR_S = 0.01;
 
 Subscriber::Subscriber(std::shared_ptr<rclcpp::Node> node,
                        okvis::ViInterface* viInterface,
-                       okvis::Publisher* publisher, 
+                       okvis::Publisher* publisher,
                        const okvis::ViParameters& parameters)
+: viInterface_(viInterface),
+  publisher_(publisher),
+  parameters_(parameters)
 {
-  viInterface_ = viInterface;
-  publisher_ = publisher;
-  parameters_ = parameters;
   setNodeHandle(node);
+}
+
+Subscriber::~Subscriber()
+{
+  shutdown();
 }
 
 void Subscriber::setNodeHandle(std::shared_ptr<rclcpp::Node> node)
 {
-
   node_ = node;
 
-  imageSubscribers_.resize(parameters_.nCameraSystem.numCameras());
-  imagesReceived_.resize(parameters_.nCameraSystem.numCameras());
+  const size_t N = parameters_.nCameraSystem.numCameras();
+  imageSubscribers_.resize(N);
 
-  // set up image reception
-  imgTransport_.reset(new image_transport::ImageTransport(node));
+  img_buf_.clear();
+  img_buf_.resize(N);
 
-  // set up callbacks
-  for (size_t i = 0; i < parameters_.nCameraSystem.numCameras(); ++i) {
+  // Tuning knobs (feel free to expose as params)
+  sync_thr_s_       = DEFAULT_SYNC_THR_S;
+  target_hz_        = 10.0;     // start conservative
+  max_buf_per_cam_  = 120;      // prevent unbounded growth
+
+  // --- IMU callback group dedicated ---
+  cbg_imu_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
+  // --- image transport ---
+  imgTransport_ = std::make_unique<image_transport::ImageTransport>(node_);
+
+  const int img_queue = 30 * static_cast<int>(N);
+
+  // IMPORTANT: subscribe to RELATIVE topics, so remaps like "cam0/image_raw:=..." work.
+  for (size_t i = 0; i < N; ++i) {
+    const std::string topic = "cam" + std::to_string(i) + "/image_raw";  // RELATIVE
     imageSubscribers_[i] = imgTransport_->subscribe(
-        "/okvis/cam" + std::to_string(i) +"/image_raw",
-        30 * parameters_.nCameraSystem.numCameras(),
-        std::bind(&Subscriber::imageCallback, this, std::placeholders::_1, i));
+      topic,
+      img_queue,
+      std::bind(&Subscriber::imageCallback, this, std::placeholders::_1, static_cast<unsigned int>(i)));
   }
 
-  subImu_ = node_->create_subscription<sensor_msgs::msg::Imu>("/okvis/imu0", 1000, 
-      std::bind(&Subscriber::imuCallback, this, std::placeholders::_1));
+  // IMU subscription (relative topic: "imu0")
+  rclcpp::SubscriptionOptions imu_opts;
+  imu_opts.callback_group = cbg_imu_;
+
+  subImu_ = node_->create_subscription<sensor_msgs::msg::Imu>(
+    "imu0",  // RELATIVE -> your remap "imu0:=/uav50/device1/..." will work
+    rclcpp::SensorDataQoS().keep_last(5000),
+    std::bind(&Subscriber::imuCallback, this, std::placeholders::_1),
+    imu_opts);
+
+  // Start sync thread
+  running_.store(true);
+  last_accepted_ns_ = 0;
+  sync_thread_ = std::thread(&Subscriber::syncLoop, this);
+
+  LOG(INFO) << "[Subscriber] started: cams=" << N
+            << " sync_thr=" << sync_thr_s_ << "s target_hz=" << target_hz_;
 }
 
-void Subscriber::shutdown() {
-  // stop callbacks
-  for (size_t i = 0; i < parameters_.nCameraSystem.numCameras(); ++i) {
-    imageSubscribers_[i].shutdown();
+void Subscriber::shutdown()
+{
+  const bool was_running = running_.exchange(false);
+  if (was_running) {
+    buf_cv_.notify_all();
+    if (sync_thread_.joinable()) sync_thread_.join();
   }
+
+  for (auto & s : imageSubscribers_) s.shutdown();
   subImu_.reset();
+
+  {
+    std::lock_guard<std::mutex> lk(buf_mtx_);
+    for (auto & b : img_buf_) b.clear();
+  }
 }
 
+void Subscriber::dropOldestUnlocked(size_t cam, size_t n)
+{
+  auto & b = img_buf_.at(cam);
+  while (n-- && !b.empty()) {
+    b.erase(b.begin());
+  }
+}
+
+// ---------- IMAGE CALLBACK (ultra-light) ----------
 void Subscriber::imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg,
                                unsigned int cameraIndex)
 {
-  const cv::Mat raw(msg->height, msg->width, CV_8UC1,
-                    const_cast<uint8_t*>(&msg->data[0]), msg->step);
-  cv::Mat filtered = raw.clone();
+  if (cameraIndex >= img_buf_.size()) return;
 
-  // timestamp
   okvis::Time t(msg->header.stamp.sec, msg->header.stamp.nanosec);
+  const uint64_t t_ns = t.toNSec();
 
-  // insert
-  imagesReceived_.at(cameraIndex)[t.toNSec()] = filtered;
-  
-  // try sync
-  std::lock_guard<std::mutex> lock(time_mutex_);
-  std::set<uint64_t> allTimes;
-  const int numCameras = imagesReceived_.size();
-  for(int i=0; i < numCameras; ++i) {
-    for(const auto & entry : imagesReceived_.at(i)) {
-      allTimes.insert(entry.first);
+  const cv::Mat raw(msg->height, msg->width, CV_8UC1,
+                    const_cast<uint8_t*>(msg->data.data()), msg->step);
+
+  // Clone to decouple lifetime from ROS message
+  cv::Mat img = raw.clone();
+
+  {
+    std::lock_guard<std::mutex> lk(buf_mtx_);
+    auto & b = img_buf_[cameraIndex];
+    b[t_ns] = std::move(img);
+
+    if (b.size() > max_buf_per_cam_) {
+      dropOldestUnlocked(cameraIndex, b.size() - max_buf_per_cam_);
     }
   }
-  for(const auto & time : allTimes) {
-    // note: ordered old to new
-    std::vector<uint64_t> syncedTimes(numCameras, 0);
-    std::map<size_t, cv::Mat> images;
-    okvis::Time tcheck;
-    tcheck.fromNSec(time);
-    bool synced = true;
-    for(int i=0; i < numCameras; ++i) {
-      bool syncedi = false;
-      for(const auto & entry : imagesReceived_.at(i)) {
-        okvis::Time ti;
-        ti.fromNSec(entry.first);
-        if(fabs((tcheck-ti).toSec()) < OKVIS_THRESHOLD_SYNC) {
-          syncedTimes.at(i) = entry.first;
-          images[i] = imagesReceived_.at(i).at(entry.first);
-          syncedi = true;
-          break;
-        } 
-      }
-      if(!syncedi) {
-        synced = false;
-        break;
-      }
+
+  buf_cv_.notify_one();
+}
+
+// ---------- SYNC LOOP (robust, no map::at) ----------
+void Subscriber::syncLoop()
+{
+  const size_t N = img_buf_.size();
+  if (N == 0) return;
+
+  const double min_dt_s = 1.0 / std::max(0.5, target_hz_);
+  const uint64_t min_dt_ns = static_cast<uint64_t>(min_dt_s * 1e9);
+  const uint64_t thr_ns = static_cast<uint64_t>(sync_thr_s_ * 1e9);
+
+  while (running_.load()) {
+    // wait for data / timeout
+    {
+      std::unique_lock<std::mutex> ul(buf_mtx_);
+      buf_cv_.wait_for(ul, std::chrono::milliseconds(5));
     }
-    if(synced) {
-      // add
-      //std::cout << "add images" << tcheck << std::endl;
-      if (!viInterface_->addImages(tcheck, images)) {
-        LOG(WARNING) << "Frame not added at t="<< tcheck;
+
+    // Try produce ONE synced set per loop (prevents bursts)
+    okvis::Time t_to_add;
+    std::map<size_t, cv::Mat> images_out;
+    bool accept = false;
+
+    {
+      std::lock_guard<std::mutex> lk(buf_mtx_);
+
+      // Need at least cam0
+      if (img_buf_[0].empty()) continue;
+
+      const uint64_t t_ref_ns = img_buf_[0].begin()->first;
+
+      // For each camera store the chosen iterator (so we never need map::at)
+      std::vector<std::map<uint64_t, cv::Mat>::iterator> chosen_it(N);
+
+      // Find per-cam closest to t_ref_ns within threshold
+      for (size_t cam = 0; cam < N; ++cam) {
+        auto & b = img_buf_[cam];
+        if (b.empty()) {
+          goto not_synced;
+        }
+
+        auto it = b.lower_bound(t_ref_ns);
+
+        auto best = b.end();
+        int64_t best_dt = std::numeric_limits<int64_t>::max();
+
+        auto consider = [&](decltype(it) jt) {
+          if (jt == b.end()) return;
+          int64_t adt = std::llabs((int64_t)jt->first - (int64_t)t_ref_ns);
+          if (adt < best_dt) { best_dt = adt; best = jt; }
+        };
+
+        consider(it);
+        if (it != b.begin()) consider(std::prev(it));
+
+        if (best == b.end() || best_dt > (int64_t)thr_ns) {
+          // If this cam's oldest is already newer than t_ref+thr, then t_ref is too old -> drop cam0 oldest
+          if (b.begin()->first > t_ref_ns + thr_ns) {
+            img_buf_[0].erase(img_buf_[0].begin());
+          }
+          goto not_synced;
+        }
+
+        chosen_it[cam] = best;
       }
-      // remove all the older stuff from buffer
-      for(int i=0; i < numCameras; ++i) {
-        const int size0 = imagesReceived_.at(i).size();
-        auto end = imagesReceived_.at(i).find(syncedTimes.at(i));
-        if(end!=imagesReceived_.at(i).end()) {
-          ++end;
+
+      // Synced set found
+      // Throttle on t_ref
+      if (last_accepted_ns_ == 0 || (t_ref_ns - last_accepted_ns_) >= min_dt_ns) {
+        accept = true;
+        last_accepted_ns_ = t_ref_ns;
+
+        t_to_add.fromNSec(t_ref_ns);
+        for (size_t cam = 0; cam < N; ++cam) {
+          images_out[cam] = chosen_it[cam]->second; // copy Mat header (data shared)
         }
-        imagesReceived_.at(i).erase(imagesReceived_.at(i).begin(), end);
-        const int size1 = imagesReceived_.at(i).size();
-        if (size0-size1>1) {
-          LOG(WARNING) << "dropped " << size0 - size1 - 1 << " unsyncable frame(s) of camera " << i
-                       << " before t=" << tcheck;
-        }
-      } 
+      }
+
+      // ALWAYS purge up to (and including) chosen_it per cam
+      for (size_t cam = 0; cam < N; ++cam) {
+        auto & b = img_buf_[cam];
+        auto end = chosen_it[cam];
+        ++end; // include used element
+        b.erase(b.begin(), end);
+      }
+
+not_synced:
+      (void)0;
+    } // unlock
+
+    // Call SLAM outside lock
+    if (accept && !images_out.empty()) {
+      if (!viInterface_->addImages(t_to_add, images_out)) {
+        LOG(WARNING) << "addImages rejected at t=" << t_to_add;
+      }
     }
   }
 }
 
+// ---------- IMU ----------
 void Subscriber::imuCallback(const sensor_msgs::msg::Imu& msg)
 {
-  // construct measurement
-  okvis::Time timestamp(msg.header.stamp.sec, msg.header.stamp.nanosec);
-  Eigen::Vector3d acc(msg.linear_acceleration.x, msg.linear_acceleration.y,
-                      msg.linear_acceleration.z);
-  Eigen::Vector3d gyr(msg.angular_velocity.x, msg.angular_velocity.y,
-                      msg.angular_velocity.z);                    
-  
-  // forward to estimator
-  viInterface_->addImuMeasurement(timestamp, acc, gyr);
+  okvis::Time ts(msg.header.stamp.sec, msg.header.stamp.nanosec);
 
-  //LOG(INFO) <<  "Entering predict and publish";
-  
-   // also forward for realtime prediction
-  if(true) {
-    publisher_->realtimePredictAndPublish(timestamp, acc, gyr);
-  }
+  const Eigen::Vector3d acc(msg.linear_acceleration.x,
+                            msg.linear_acceleration.y,
+                            msg.linear_acceleration.z);
+
+  const Eigen::Vector3d gyr(msg.angular_velocity.x,
+                            msg.angular_velocity.y,
+                            msg.angular_velocity.z);
+
+  viInterface_->addImuMeasurement(ts, acc, gyr);
 }
-
 
 } // namespace okvis
