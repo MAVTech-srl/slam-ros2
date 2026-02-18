@@ -45,7 +45,7 @@ cameras:
 
 # additional camera parameters
 camera_parameters:
-    timestamp_tolerance: 0.1 # [s] stereo frame out-of-sync tolerance
+    timestamp_tolerance: 0.01 # [s] stereo frame out-of-sync tolerance
     image_delay: 0.0 # [s] timestamp_camera_correct = timestamp_camera - image_delay
     sync_cameras: [] # the cameras that will be synchronised
     online_calibration: # some parameters to set the online 
@@ -82,8 +82,8 @@ frontend_parameters:
     absolute_threshold: 5.0 # absolute Harris corner threshold (noise floor)
     matching_threshold: 60.0 # BRISK descriptor matching threshold
     octaves: 0 # number of octaves for detection. 0 means single-scale at highest resolution
-    max_num_keypoints: 200 # restrict to a maximum of this many keypoints per image (strongest ones) 400
-    keyframe_overlap: 0.85 # minimum field-of-view overlap 0.55
+    max_num_keypoints: 400 # restrict to a maximum of this many keypoints per image (strongest ones) 400
+    keyframe_overlap: 0.65 # minimum field-of-view overlap 0.55
     use_cnn: false # whether to use the segmentation CNN
     parallelise_detection: true
     num_matching_threads: 3
@@ -92,7 +92,7 @@ frontend_parameters:
 estimator_parameters:
     num_keyframes: 5 # number of keyframes in optimisation window
     num_loop_closure_frames: 0 # number of loop closure frames in optimisation window
-    num_imu_frames: 3  # number of frames linked by most recent nonlinear IMU error terms
+    num_imu_frames: 5  # number of frames linked by most recent nonlinear IMU error terms
     do_loop_closures: false # whether to do VI-SLAM or VIO
     do_final_ba: false # Whether to run a full final BA
     enforce_realtime: false # whether to limit the time budget for optimisation 
@@ -107,5 +107,5 @@ estimator_parameters:
 
 # some options for how and what to output
 output_parameters:
-    display_matches: false  # displays debug video and matches. May be slow.
+    display_matches: true  # displays debug video and matches. May be slow.
     display_overhead: false # debug overhead image. Is slow.
