@@ -2179,10 +2179,24 @@ void Frontend::matchStereo(Estimator &estimator, std::shared_ptr<okvis::MultiFra
       // first, check the possibility for overlap
       // FIXME: implement this in the Multiframe...!!
 
+      // ONLY allow stereo matching between cam0 and cam1
+      if (!(im0 == 0 && im1 == 1)) {
+        continue;
+      }
+
       // check overlap
       if (!multiFrame->hasOverlap(im0, im1)) {
         continue;
       }
+
+      const bool overlap = multiFrame->hasOverlap(im0, im1);      
+
+      if (!overlap) {
+        continue;
+      }
+      // LOG(INFO) << "[matchStereo] overlap=" << (overlap ? "true" : "false")
+      //           << " for pair (im0,im1)=(" << im0 << "," << im1 << "), mfId=" << mfId;
+
 
       // useful later:
       const kinematics::Transformation T_SC1 = *multiFrame->T_SC(im1);

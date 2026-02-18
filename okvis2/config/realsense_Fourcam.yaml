@@ -1,0 +1,122 @@
+%YAML:1.0
+cameras:
+     - {T_SC:
+        [1.0, 0.0, 0.0, -0.0302200001,
+         0.0, 1.0, 0.0,  0.0074000000,
+         0.0, 0.0, 1.0,  0.0160200000,
+          0.0, 0.0, 0.0, 1.0000000000],
+        image_dimension: [848, 480],
+        distortion_coefficients: [0.0, 0.0, 0.0, 0.0],
+        distortion_type: radialtangential,
+        focal_length: [432.9645782973546, 433.32266611406177],
+        principal_point: [424.87694165167729, 237.63038691484227],
+        camera_type: gray, #gray, rgb, gray+depth, rgb+depth
+        slam_use: okvis} #none, okvis, okvis-depth, okvis-virtual
+
+     - {T_SC:
+        [1.0, 0.0, 0.0,  0.0646901205,
+         0.0, 1.0, 0.0,  0.0074000000,
+         0.0, 0.0, 1.0,  0.0160200000,
+          0.0, 0.0, 0.0, 1.0000000000],
+        image_dimension: [848, 480],
+        distortion_coefficients: [0.0, 0.0, 0.0, 0.0],
+        distortion_type: radialtangential,
+        focal_length: [432.87376918008939, 433.3404159794701],
+        principal_point: [425.2328913400517, 237.95469929595925],
+        camera_type: gray, #gray, rgb, gray+depth, rgb+depth
+        slam_use: okvis} #none, okvis, okvis-depth, okvis-virtual
+
+     - {T_SC:
+        [-0.4947831708, -0.0028577313,  0.8690117647,  0.0660428968,
+         -0.0100094423,  0.9999469984, -0.0024106967,  0.0033177093,
+         -0.8689588166, -0.0098910952, -0.4947855508, -0.0396578457,
+          0.0,           0.0,           0.0,           1.0],
+        image_dimension: [848, 480],
+        distortion_coefficients: [0.0, 0.0, 0.0, 0.0],
+        distortion_type: radialtangential,
+        focal_length: [424.6209105260, 425.0420912718],
+        principal_point: [426.0962108920, 241.1056666027],
+        camera_type: gray, #gray, rgb, gray+depth, rgb+depth
+        slam_use: okvis}
+
+     - {T_SC:
+        [-0.5065429132,  0.0008689424, -0.8622143133, -0.0455797511,
+          0.0049652995,  0.9999858501, -0.0019092783,  0.0060819379,
+          0.8622004540, -0.0052482837, -0.5065400603, -0.0265691153,
+          0.0,           0.0,           0.0,           1.0],
+        image_dimension: [848, 480],
+        distortion_coefficients: [0.0, 0.0, 0.0, 0.0],
+        distortion_type: radialtangential,
+        focal_length: [429.4139114743, 429.8498217105],
+        principal_point: [428.0622986724, 234.5396552965],
+        camera_type: gray, #gray, rgb, gray+depth, rgb+depth
+        slam_use: okvis}
+
+
+
+# additional camera parameters
+camera_parameters:
+    timestamp_tolerance: 0.01 # [s] stereo frame out-of-sync tolerance
+    image_delay: 0.0 # [s] timestamp_camera_correct = timestamp_camera - image_delay
+    sync_cameras: [] # the cameras that will be synchronised
+    online_calibration: # some parameters to set the online 
+        do_extrinsics: false # Do we online-calibrate extrinsics?
+        do_extrinsics_final_ba: false # Do we calibrate extrinsics in final BA?
+        sigma_r: 0.01 # T_SCi position prior stdev [m]
+        sigma_alpha: 0.1 # T_SCi orientation prior stdev [rad]
+        sigma_r_final_ba: 0.03 # T_SCi position prior stdev in final BA [m]
+        sigma_alpha_final_ba: 0.3 # T_SCi orientation prior stdev in final BA [rad]
+
+# the IMU sensor model
+imu_parameters:
+    use: true # enable IMU
+    a_max: 160.0 # acceleration saturation [m/s^2]
+    g_max: 10.0 # gyro saturation [rad/s]
+    sigma_g_c: 20.0e-3 # gyro noise density [rad/s/sqrt(Hz)]
+    sigma_bg: 0.01 # gyro bias prior [rad/s]
+    sigma_a_c: 20.0e-3 # accelerometer noise density [m/s^2/sqrt(Hz)]
+    sigma_ba: 0.1 # accelerometer bias prior [m/s^2]
+    sigma_gw_c: 20.0e-5 # gyro drift noise density [rad/s^s/sqrt(Hz)]
+    sigma_aw_c: 20.0e-3 # accelerometer drift noise density [m/s^2/sqrt(Hz)]
+    a0: [ 0.237891675418656,  0.167477259386443,   0.242558311983621 ] # Initial accelerometer bias [m/s^2]
+    g0: [ 0.0, 0.0, 0.0 ] # Initial gyro bias [rad/s]
+    g: 9.81007 # Earth's acceleration due to gravity [m/s^2]
+    T_BS: 
+        [ 1.0, 0.0, 0.0, 0.0,
+          0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0,
+          0.0, 0.0, 0.0, 1.0 ]
+
+# frontend: detection etc. 
+frontend_parameters:
+    detection_threshold: 35.0 # detection threshold. By default the uniformity radius in pixels
+    absolute_threshold: 5.0 # absolute Harris corner threshold (noise floor)
+    matching_threshold: 60.0 # BRISK descriptor matching threshold
+    octaves: 0 # number of octaves for detection. 0 means single-scale at highest resolution
+    max_num_keypoints: 200 # restrict to a maximum of this many keypoints per image (strongest ones) 400
+    keyframe_overlap: 0.65 # minimum field-of-view overlap 0.55
+    use_cnn: false # whether to use the segmentation CNN
+    parallelise_detection: true
+    num_matching_threads: 3
+
+# estimator parameters
+estimator_parameters:
+    num_keyframes: 6 # number of keyframes in optimisation window
+    num_loop_closure_frames: 0 # number of loop closure frames in optimisation window
+    num_imu_frames: 5  # number of frames linked by most recent nonlinear IMU error terms
+    do_loop_closures: false # whether to do VI-SLAM or VIO
+    do_final_ba: false # Whether to run a full final BA
+    enforce_realtime: false # whether to limit the time budget for optimisation 
+    realtime_min_iterations: 3 # minimum number of iterations always performed
+    realtime_max_iterations: 10 # never do more than these, even if not converged
+    realtime_time_limit: 0.04 # time budget for realtime optimisation [s]
+    realtime_num_threads: 4 # number of threads for the realtime optimisation
+    full_graph_iterations: 1 # don't do more than these for the full (background) optimisation
+    full_graph_num_threads: 4 # number of threads for the full (background) optimisation
+    p_dbow: 0.4 # Match threshold for dBoW -- unfortunately this varies with setups.
+    drift_percentage_heuristic: 1.35 # % allowed drift in loop closures rel. to dist. travelled.
+
+# some options for how and what to output
+output_parameters:
+    display_matches: false  # displays debug video and matches. May be slow.
+    display_overhead: false # debug overhead image. Is slow.
