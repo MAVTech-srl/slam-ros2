@@ -93,7 +93,7 @@ frontend_parameters:
     absolute_threshold: 5.0 # absolute Harris corner threshold (noise floor)
     matching_threshold: 60.0 # BRISK descriptor matching threshold
     octaves: 0 # number of octaves for detection. 0 means single-scale at highest resolution
-    max_num_keypoints: 200 # restrict to a maximum of this many keypoints per image (strongest ones) 400
+    max_num_keypoints: 100 # restrict to a maximum of this many keypoints per image (strongest ones) 400
     keyframe_overlap: 0.65 # minimum field-of-view overlap 0.55
     use_cnn: false # whether to use the segmentation CNN
     parallelise_detection: true
@@ -101,9 +101,9 @@ frontend_parameters:
 
 # estimator parameters
 estimator_parameters:
-    num_keyframes: 6 # number of keyframes in optimisation window
+    num_keyframes: 4 # number of keyframes in optimisation window
     num_loop_closure_frames: 0 # number of loop closure frames in optimisation window
-    num_imu_frames: 5  # number of frames linked by most recent nonlinear IMU error terms
+    num_imu_frames: 3  # number of frames linked by most recent nonlinear IMU error terms
     do_loop_closures: false # whether to do VI-SLAM or VIO
     do_final_ba: false # Whether to run a full final BA
     enforce_realtime: false # whether to limit the time budget for optimisation 

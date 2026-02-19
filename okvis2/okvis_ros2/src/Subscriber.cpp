@@ -50,7 +50,7 @@ void Subscriber::setNodeHandle(std::shared_ptr<rclcpp::Node> node)
 
   // Tuning knobs (feel free to expose as params)
   sync_thr_s_       = DEFAULT_SYNC_THR_S;
-  target_hz_        = 10.0;     // start conservative
+  target_hz_        = 30.0;     // start conservative
   max_buf_per_cam_  = 120;      // prevent unbounded growth
 
   // --- IMU callback group dedicated ---
@@ -59,7 +59,7 @@ void Subscriber::setNodeHandle(std::shared_ptr<rclcpp::Node> node)
   // --- image transport ---
   imgTransport_ = std::make_unique<image_transport::ImageTransport>(node_);
 
-  const int img_queue = 30 * static_cast<int>(N);
+  const int img_queue = 3 * static_cast<int>(N);
 
   // IMPORTANT: subscribe to RELATIVE topics, so remaps like "cam0/image_raw:=..." work.
   for (size_t i = 0; i < N; ++i) {

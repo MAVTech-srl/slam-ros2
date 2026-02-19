@@ -77,6 +77,7 @@
 
 #include <okvis/Frontend.hpp>
 
+
 // okvis ceres
 #include <okvis/ceres/PoseParameterBlock.hpp>
 #include <okvis/ceres/HomogeneousPointParameterBlock.hpp>
@@ -101,6 +102,85 @@
 #include <okvis/internal/Network.hpp>
 
 /// \brief okvis Main namespace of this package.
+
+namespace {
+
+  
+inline void logGraphStats(const okvis::Estimator& estimator,
+                          const okvis::ViParameters& params,
+                          uint64_t currentFrameId,
+                          const char* tag)
+{
+  okvis::MapPoints pointMap;
+  estimator.getLandmarks(pointMap);
+
+  const auto kf  = estimator.keyFrames();
+  const auto lcf = estimator.loopClosureFrames();
+  const auto imf = estimator.imuFrames();
+
+  LOG(INFO) << "[GRAPH-STATS][" << tag << "] frameId=" << currentFrameId
+            << " numFrames=" << estimator.numFrames()
+            << " keyframes=" << kf.size()
+            << " loopClosureFrames=" << lcf.size()
+            << " imuFrames=" << imf.size()
+            << " landmarks=" << pointMap.size()
+            << " isLoopClosing=" << estimator.isLoopClosing()
+            << " loopClosureAvailable=" << estimator.isLoopClosureAvailable()
+            << " needsFullGraphOpt=" << estimator.needsFullGraphOptimisation()
+            << " doLoopClosures=" << params.estimator.do_loop_closures;
+}
+
+// ritorna tutti gli offset (dx,dy) tali che dx^2 + dy^2 <= r^2
+inline const std::vector<std::pair<int,int>>& circleOffsets(int r)
+{
+  static std::mutex m;
+  static std::unordered_map<int, std::vector<std::pair<int,int>>> cache;
+
+  std::lock_guard<std::mutex> lk(m);
+  auto it = cache.find(r);
+  if (it != cache.end()) return it->second;
+
+  std::vector<std::pair<int,int>> off;
+  off.reserve((2*r+1)*(2*r+1));
+  const int r2 = r*r;
+  for (int dy = -r; dy <= r; ++dy) {
+    for (int dx = -r; dx <= r; ++dx) {
+      if (dx*dx + dy*dy <= r2) off.emplace_back(dx,dy);
+    }
+  }
+  auto [insIt, _] = cache.emplace(r, std::move(off));
+  return insIt->second;
+}
+
+inline void setDisk(std::vector<uint8_t>& grid, int rows, int cols, int u, int v, int r)
+{
+  const auto& off = circleOffsets(r);
+  for (const auto& [dx,dy] : off) {
+    const int uu = u + dx;
+    const int vv = v + dy;
+    if ((unsigned)uu < (unsigned)cols && (unsigned)vv < (unsigned)rows) {
+      grid[vv*cols + uu] = 1;
+    }
+  }
+}
+
+inline void iouCounts(const std::vector<uint8_t>& A,
+                      const std::vector<uint8_t>& B,
+                      int& inter, int& uni)
+{
+  // A,B stessi size
+  const size_t n = A.size();
+  for (size_t i = 0; i < n; ++i) {
+    const uint8_t a = A[i];
+    const uint8_t b = B[i];
+    inter += (a & b);
+    uni   += (a | b);
+  }
+}
+
+} // namespace
+
+
 namespace okvis {
 
 static const double kptrad = 0.09;
@@ -695,6 +775,20 @@ bool Frontend::dataAssociationAndInitialization(
   // decide keyframe
   // left-right stereo match & init
 
+  static uint64_t lastLoggedId = 0;
+  if (framesInOut && framesInOut->id() != lastLoggedId) {
+    // log every N frames to reduce spam
+    constexpr uint64_t kLogEvery = 20;
+    if (framesInOut->id() % kLogEvery == 0) {
+      const uint64_t currentFrameId = framesInOut->id();
+      //logGraphStats(estimator, params, currentFrameId, "MATCHTOMAP-BEGIN");
+
+
+      lastLoggedId = framesInOut->id();
+    }
+  }
+
+
   // find distortion type
   cameras::NCameraSystem::DistortionType distortionType = params.nCameraSystem.distortionType(0);
   for (size_t i = 1; i < params.nCameraSystem.numCameras(); ++i) {
@@ -1146,114 +1240,105 @@ void Frontend::clear()
 // Decision whether a new frame should be keyframe or not.
 bool Frontend::doWeNeedANewKeyframe(const Estimator &estimator,
                                     std::shared_ptr<okvis::MultiFrame> currentFrame) {
-  if (estimator.numFrames() < 4) {
-    // just starting, so yes, we need this as a new keyframe
-    return true;
-  }
-
+  if (estimator.numFrames() < 4) return true;
   if (!isInitialized_) return false;
 
   int intersectionCount = 0;
   int unionCount = 0;
-
   size_t numKeypoints = 0;
 
-  // go through all the frames and try to match the initialized keypoints
   std::set<uint64_t> lmIds;
-  for (size_t im = 0; im < currentFrame->numFrames(); ++im) {
-    const int rows = currentFrame->image(im).rows/10;
-    const int cols = currentFrame->image(im).cols/10;
 
-    cv::Mat matches = cv::Mat::zeros(rows, cols, CV_8UC1);
-    cv::Mat detections = cv::Mat::zeros(rows, cols, CV_8UC1);
+  // --- IoU current frame ---
+  for (size_t im = 0; im < currentFrame->numFrames(); ++im) {
+    const int rows = currentFrame->image(im).rows / 10;
+    const int cols = currentFrame->image(im).cols / 10;
+    if (rows <= 0 || cols <= 0) continue;
+
+    std::vector<uint8_t> detections(size_t(rows) * size_t(cols), 0);
+    std::vector<uint8_t> matches   (size_t(rows) * size_t(cols), 0);
 
     const size_t numB = currentFrame->numKeypoints(im);
     numKeypoints += numB;
-    const double radius = double(std::min(rows,cols))*kptrad;
-    cv::KeyPoint keypoint;
+
+    const int r = std::max(1, int(double(std::min(rows, cols)) * kptrad));
+
+    cv::KeyPoint kp;
     for (size_t k = 0; k < numB; ++k) {
-      currentFrame->getCvKeypoint(im, k, keypoint);
-      cv::circle(detections, keypoint.pt*0.1, int(radius), cv::Scalar(255), cv::FILLED);
-      uint64_t lmId = currentFrame->landmarkId(im, k);
+      currentFrame->getCvKeypoint(im, k, kp);
+      const int u = int(kp.pt.x * 0.1);
+      const int v = int(kp.pt.y * 0.1);
+
+      setDisk(detections, rows, cols, u, v, r);
+
+      const uint64_t lmId = currentFrame->landmarkId(im, k);
       if (lmId != 0) {
-        cv::circle(matches, keypoint.pt*0.1, int(radius), cv::Scalar(255), cv::FILLED);
         lmIds.insert(lmId);
+        setDisk(matches, rows, cols, u, v, r);
       }
     }
 
-    // IoU
-    cv::Mat intersectionMask, unionMask;
-    cv::bitwise_and(matches, detections, intersectionMask);
-    cv::bitwise_or(matches, detections, unionMask);
-    intersectionCount += cv::countNonZero(intersectionMask);
-    unionCount += cv::countNonZero(unionMask);
+    iouCounts(matches, detections, intersectionCount, unionCount);
   }
 
-  double overlap = double(intersectionCount)/double(unionCount);
+  const double overlapCur =
+      (unionCount > 0) ? (double(intersectionCount) / double(unionCount)) : 0.0;
 
+  // --- build candidate frames ---
   std::set<StateId> allFrames = estimator.keyFrames();
   allFrames.insert(estimator.loopClosureFrames().begin(), estimator.loopClosureFrames().end());
-  for(size_t age = 0; age < estimator.numFrames(); ++age) {
+  for (size_t age = 0; age < estimator.numFrames(); ++age) {
     auto id = estimator.stateIdByAge(age);
-    if(!estimator.isInImuWindow(id)) {
-      break;
-    }
-    if(estimator.isKeyframe(id)) {
-      allFrames.insert(id);
-    }
+    if (!estimator.isInImuWindow(id)) break;
+    if (estimator.isKeyframe(id)) allFrames.insert(id);
   }
-  double overlapOthers = 0.0;
-  for(auto frame : allFrames) {
-    int intersectionCount = 0;
-    int unionCount = 0;
 
-    // go through all the frames and try to match the initialized keypoints
+  // --- IoU vs other frames ---
+  double overlapOthers = 0.0;
+  for (const auto &frame : allFrames) {
+    int inter2 = 0;
+    int uni2 = 0;
+
     auto otherFrame = estimator.multiFrame(frame);
     for (size_t im = 0; im < otherFrame->numFrames(); ++im) {
-      const int rows = otherFrame->image(im).rows/10;
-      const int cols = otherFrame->image(im).cols/10;
+      const int rows = otherFrame->image(im).rows / 10;
+      const int cols = otherFrame->image(im).cols / 10;
+      if (rows <= 0 || cols <= 0) continue;
 
-      cv::Mat matches = cv::Mat::zeros(rows, cols, CV_8UC1);
-      cv::Mat detections = cv::Mat::zeros(rows, cols, CV_8UC1);
+      std::vector<uint8_t> detections(size_t(rows) * size_t(cols), 0);
+      std::vector<uint8_t> matches   (size_t(rows) * size_t(cols), 0);
 
       const size_t numB = otherFrame->numKeypoints(im);
+      const int r = std::max(1, int(double(std::min(rows, cols)) * kptrad));
 
-      const double radius = double(std::min(rows,cols))*kptrad;
-      cv::KeyPoint keypoint;
+      cv::KeyPoint kp;
       for (size_t k = 0; k < numB; ++k) {
-        otherFrame->getCvKeypoint(im, k, keypoint);
-        cv::circle(detections, keypoint.pt*0.1, int(radius), cv::Scalar(255), cv::FILLED);
-        uint64_t lmId = otherFrame->landmarkId(im, k);
+        otherFrame->getCvKeypoint(im, k, kp);
+        const int u = int(kp.pt.x * 0.1);
+        const int v = int(kp.pt.y * 0.1);
+
+        setDisk(detections, rows, cols, u, v, r);
+
+        const uint64_t lmId = otherFrame->landmarkId(im, k);
         if (lmId != 0 && lmIds.count(lmId)) {
-          cv::circle(matches, keypoint.pt*0.1, int(radius), cv::Scalar(255), cv::FILLED);
+          setDisk(matches, rows, cols, u, v, r);
         }
       }
 
-      // IoU
-      cv::Mat intersectionMask, unionMask;
-      cv::bitwise_and(matches, detections, intersectionMask);
-      cv::bitwise_or(matches, detections, unionMask);
-      intersectionCount += cv::countNonZero(intersectionMask);
-      unionCount += cv::countNonZero(unionMask);
+      iouCounts(matches, detections, inter2, uni2);
     }
 
-    overlapOthers = std::max(overlapOthers, double(intersectionCount)/double(unionCount));
+    const double iou = (uni2 > 0) ? (double(inter2) / double(uni2)) : 0.0;
+    overlapOthers = std::max(overlapOthers, iou);
   }
 
-  overlap = std::min(overlapOthers, overlap);
+  const double overlap = std::min(overlapCur, overlapOthers);
 
-  // take a decision
-  if(numKeypoints < 7 * currentFrame->numFrames()) {
-    // a respectable keyframe needs some detections...
-    return false;
-  }
-  if (float(overlap) > keyframeInsertionOverlapThreshold_
-      /*&& double(numMatches)/double(numKeypoints) > 0.35*/) {
-    return false;
-  } else {
-    return true;
-  }
+  if (numKeypoints < 7 * currentFrame->numFrames()) return false;
+  if (float(overlap) > keyframeInsertionOverlapThreshold_) return false;
+  return true;
 }
+
 
 // Match a new multiframe to existing keyframes
 template <class CAMERA_GEOMETRY>
@@ -1544,12 +1629,17 @@ int Frontend::matchToMap(Estimator &estimator, const okvis::ViParameters& params
     estimator.optimiseRealtimeGraph(
         numInitIter, updatedStatesRealtime, params.estimator.realtime_num_threads,
         false, true, isInitialized_);
+
     /*int numInliers = */removeOutliers<CAMERA_GEOMETRY>(estimator,
                                     params.nCameraSystem,
                                     estimator.multiFrame(StateId(currentFrameId)));
     estimator.optimiseRealtimeGraph(
       2, updatedStatesRealtime, params.estimator.realtime_num_threads,
       false, true, isInitialized_);
+    //logGraphStats(estimator, params, currentFrameId, "MATCHTOMAP-BEGIN");
+
+
+
     T_WS1 = estimator.pose(StateId(currentFrameId));
   }
   if (ctr <= 3 && isInitialized_) {
@@ -1685,6 +1775,13 @@ int Frontend::matchToMap(Estimator &estimator, const okvis::ViParameters& params
     estimator.optimiseRealtimeGraph(
     numInitIter, updatedStatesRealtime, params.estimator.realtime_num_threads,
         false, true, isInitialized_);
+
+    //logGraphStats(estimator, params, currentFrameId, "MATCHTOMAP-BEGIN");
+
+
+
+
+        
   }
   //OKVIS_ASSERT_TRUE(Exception, estimator.areLandmarksInFrontOfCameras(), "after match to map")
 

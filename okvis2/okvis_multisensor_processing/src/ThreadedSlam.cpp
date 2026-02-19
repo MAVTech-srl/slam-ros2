@@ -55,10 +55,10 @@
 namespace okvis
 {
 
-static const int cameraInputQueueSize = 30;
+static const int cameraInputQueueSize = 20;
 
 // overlap of imu data before and after two consecutive frames [seconds]:
-static const double imuTemporalOverlap = 0.05;
+static const double imuTemporalOverlap = 0.02;
 
 
 // Constructor.
@@ -145,11 +145,6 @@ bool ThreadedSlam::addImages(const okvis::Time & stamp,
   // timestamp_camera_correct = timestamp_camera - image_delay
   const Time stampCorrected = stamp - Duration(parameters_.camera.image_delay);
 
-  // static uint64_t dropCount = 0;
-  // dropCount++;
-  // LOG(WARNING) << "frame drop (queue full). dropCount=" << dropCount
-  //             << " stamp=" << stampCorrected;
-
   // assemble frame
   const size_t numCameras = parameters_.nCameraSystem.numCameras();
   std::vector<okvis::CameraMeasurement> frames(numCameras);
@@ -186,93 +181,58 @@ bool ThreadedSlam::addImages(const okvis::Time & stamp,
 
   if (blocking_)
   {
-    return cameraMeasurementsReceived_.PushBlockingIfFull(frames, 1);
+    return cameraMeasurementsReceived_.PushBlockingIfFull(frames,1);
   }
   else
   {
-    // Try to push. If full, drop oldest frame(s) to make room, then retry.
-    size_t qsize0 = 0;
-    if constexpr (true) { // keep it compile-friendly if Size() exists
-      qsize0 = cameraMeasurementsReceived_.Size();
-    }
-
-    bool dropped_new = cameraMeasurementsReceived_.PushNonBlockingDroppingIfFull(frames, cameraInputQueueSize);
-    if (dropped_new)
-    {
-      // Queue was full and the newest frame was rejected -> drop oldest and retry.
-      size_t dropped_old = 0;
-      std::vector<okvis::CameraMeasurement> tmp;
-
-      // Drop a few old frames (bounded) to recover; in practice 1-5 is enough.
-      for (int k = 0; k < 5 && dropped_new; ++k)
-      {
-        if (cameraMeasurementsReceived_.PopNonBlocking(&tmp))
-        {
-          ++dropped_old;
-        }
-        else
-        {
-          break; // can't pop -> give up
-        }
-
-        dropped_new = cameraMeasurementsReceived_.PushNonBlockingDroppingIfFull(frames, cameraInputQueueSize);
-      }
-
-      if (dropped_new)
-      {
-        const size_t qsize1 = cameraMeasurementsReceived_.Size();
-        LOG(WARNING) << "frame drop (could not recover, queue_size=" << qsize1
-                    << ", cap=" << cameraInputQueueSize
-                    << ", t=" << stampCorrected << ")";
-        return false;
-      }
-
-      const size_t qsize1 = cameraMeasurementsReceived_.Size();
-      LOG(WARNING) << "queue full: dropped " << dropped_old
-                  << " oldest frame(s), kept newest (queue_size " << qsize0
-                  << "->" << qsize1 << ", cap=" << cameraInputQueueSize
-                  << ", t=" << stampCorrected << ")";
-    }
-
-    return true;
-  }
-
-}
-
-bool ThreadedSlam::addImuMeasurement(const okvis::Time& stamp,
-                                     const Eigen::Vector3d& alpha,
-                                     const Eigen::Vector3d& omega)
-{
-  static bool warnOnce = true;
-  if (!parameters_.imu.use) {
-    if (warnOnce) { LOG(WARNING) << "imu measurement added, but IMU disabled"; warnOnce = false; }
-    return false;
-  }
-
-  okvis::ImuMeasurement imu_measurement;
-  imu_measurement.measurement.accelerometers = alpha;
-  imu_measurement.measurement.gyroscopes = omega;
-  imu_measurement.timeStamp = stamp;
-
-  const size_t imuQueueSize = 5000;   // <<< aumenta (200/500 sono spesso pochi con burst)
-
-  if (realtimePropagation_) {
-    imuMeasurementsReceivedPropagate_.PushNonBlockingDroppingIfFull(imu_measurement, imuQueueSize);
-  }
-
-  if (blocking_) {
-    return imuMeasurementsReceived_.PushBlockingIfFull(imu_measurement, imuQueueSize);
-  } else {
-    const bool dropped_new = imuMeasurementsReceived_.PushNonBlockingDroppingIfFull(imu_measurement, imuQueueSize);
-    if (dropped_new) {
-      LOG(WARNING) << "IMU queue full: dropped newest imu at t=" << stamp
-                   << " (cap=" << imuQueueSize << ")";
+    if(cameraMeasurementsReceived_.PushNonBlockingDroppingIfFull(frames, cameraInputQueueSize)) {
+      LOG(WARNING) << "frame drop ";
       return false;
     }
     return true;
   }
 }
 
+// Add an IMU measurement.
+bool ThreadedSlam::addImuMeasurement(const okvis::Time& stamp,
+                                     const Eigen::Vector3d& alpha,
+                                     const Eigen::Vector3d& omega)
+{
+  static bool warnOnce = true;
+  if (!parameters_.imu.use) {
+    if (warnOnce) {
+      LOG(WARNING) << "imu measurement added, but IMU disabled";
+      warnOnce = false;
+    }
+    return false;
+  }
+  okvis::ImuMeasurement imu_measurement;
+  imu_measurement.measurement.accelerometers = alpha;
+  imu_measurement.measurement.gyroscopes = omega;
+  imu_measurement.timeStamp = stamp;
+
+  const int imuQueueSize = 500;
+
+  if(realtimePropagation_) {
+     imuMeasurementsReceivedPropagate_.PushNonBlockingDroppingIfFull(
+           imu_measurement, size_t(imuQueueSize));
+  }
+
+  if (blocking_)
+  {
+    return imuMeasurementsReceived_.PushBlockingIfFull(imu_measurement, size_t(imuQueueSize));
+  }
+  else
+  {
+    if(imuMeasurementsReceived_.PushNonBlockingDroppingIfFull(
+         imu_measurement, size_t(imuQueueSize))) {
+      LOG(WARNING) << "imu measurement drop ";
+      return false;
+    }
+    return true;
+  }
+
+}
 
 
 // Set the blocking variable that indicates whether the addMeasurement() functions
@@ -312,11 +272,6 @@ bool ThreadedSlam::processFrame() {
   MultiFramePtr multiFrame;
   ImuMeasurement imuMeasurement;
   const size_t numCameras = parameters_.nCameraSystem.numCameras();
-  static bool haveLastStamp = false;
-  static okvis::Time lastStamp;
-  const okvis::Time t0 = okvis::Time::now();
-
-  double frame_dt = 0.0;
 
   kinematics::Transformation T_WS;
   SpeedAndBias speedAndBias;
@@ -332,13 +287,6 @@ bool ThreadedSlam::processFrame() {
     if(!getNextFrame(multiFrame)) {
       return false;
     }
-
-    if (haveLastStamp) {
-      frame_dt = (multiFrame->timestamp() - lastStamp).toSec();
-    }
-    lastStamp = multiFrame->timestamp();
-    haveLastStamp = true;
-
 
     if(parameters_.imu.use) {
       if(multiFrame->timestamp()-Duration(imuTemporalOverlap) <= imuMeasurement.timeStamp) {
@@ -376,22 +324,11 @@ bool ThreadedSlam::processFrame() {
     if(!getNextFrame(multiFrame)) {
       if(optimisationThread_.joinable()) {
         // in the very beginning, we can't join because it was not started
-        const okvis::Time tj0 = okvis::Time::now();
         optimisationThread_.join();
-        //LOG(INFO) << "optimisationThread join dt=" << (okvis::Time::now() - tj0).toSec();
       }
 
       return false;
     }
-
-    if (haveLastStamp) {
-      frame_dt = (multiFrame->timestamp() - lastStamp).toSec();
-    }
-    lastStamp = multiFrame->timestamp();
-    haveLastStamp = true;
-
-
-
     // now get all relevant IMU measurements we have received thus far
     if(parameters_.imu.use) {
       while(!shutdown_ && imuMeasurementDeque_.back().timeStamp <
@@ -527,12 +464,9 @@ bool ThreadedSlam::processFrame() {
   }
 
   // IMPORTANT: the matcher needs the optimiser to be finished:
-  auto tJoin0 = Time::now();
   if(optimisationThread_.joinable()) {
     // in the very beginning, we can't join because it was not started
-    const okvis::Time tj0 = okvis::Time::now();
     optimisationThread_.join();
-    //LOG(INFO) << "optimisationThread join dt=" << (okvis::Time::now() - tj0).toSec();
   }
 
   // now store last optimised state for later use
@@ -580,39 +514,7 @@ bool ThreadedSlam::processFrame() {
   Time matchingStart = Time::now();
   TimerSwitchable matchTimer("2 Match");
   bool asKeyframe = false;
-
-  // if(parameters_.imu.use) {
-  //   const double t_frame = multiFrame->timestamp().toSec();
-  //   const double t0 = imuMeasurementDeque_.empty() ? NAN : imuMeasurementDeque_.front().timeStamp.toSec();
-  //   const double t1 = imuMeasurementDeque_.empty() ? NAN : imuMeasurementDeque_.back().timeStamp.toSec();
-  //   LOG(WARNING) << "IMU deque range: [" << t0 << ", " << t1 << "], frame t=" << t_frame
-  //               << " overlap=" << imuTemporalOverlap
-  //               << " size=" << imuMeasurementDeque_.size();
-  // }
-
-  if (parameters_.imu.use && lastOptimisedState_.id.isInitialised()) {
-    const okvis::Time t_prev = lastOptimisedState_.timestamp;
-    const okvis::Time t_curr = multiFrame->timestamp();
-
-    // Need IMU to cover [t_prev, t_curr] (at least one sample after prev, and back() >= curr)
-    bool have_after_prev = false;
-    for (const auto& m : imuMeasurementDeque_) {
-      if (m.timeStamp > t_prev) { have_after_prev = true; break; }
-    }
-    const bool have_after_curr =
-        (!imuMeasurementDeque_.empty() && imuMeasurementDeque_.back().timeStamp >= t_curr);
-
-    if (!have_after_prev || !have_after_curr) {
-      LOG(WARNING) << "Skipping frame: insufficient IMU coverage "
-                  << "(t_prev=" << t_prev << ", t_curr=" << t_curr
-                  << ", imu_front=" << (imuMeasurementDeque_.empty()? okvis::Time() : imuMeasurementDeque_.front().timeStamp)
-                  << ", imu_back="  << (imuMeasurementDeque_.empty()? okvis::Time() : imuMeasurementDeque_.back().timeStamp)
-                  << ", imu_size="  << imuMeasurementDeque_.size() << ")";
-      return true; // skip cleanly
-    }
-  }
-
-
+      
   if (!estimator_.addStates(multiFrame, imuMeasurementDeque_, asKeyframe)) {    
     LOG(ERROR)<< "Failed to add state! will drop multiframe.";
     matchTimer.stop();
@@ -665,7 +567,6 @@ bool ThreadedSlam::processFrame() {
 
   return true;
 }
-
 
 void ThreadedSlam::optimisePublishMarginalise(MultiFramePtr multiFrame,
                                               const Eigen::Vector3d& gyroReading) {
