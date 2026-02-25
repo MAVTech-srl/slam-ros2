@@ -50,7 +50,7 @@ void Subscriber::setNodeHandle(std::shared_ptr<rclcpp::Node> node)
 
   // Tuning knobs (feel free to expose as params)
   sync_thr_s_       = DEFAULT_SYNC_THR_S;
-  target_hz_        = 30.0;     // start conservative
+  target_hz_        = 10.0;     // start conservative
   max_buf_per_cam_  = 120;      // prevent unbounded growth
 
   // --- IMU callback group dedicated ---
@@ -254,6 +254,13 @@ void Subscriber::imuCallback(const sensor_msgs::msg::Imu& msg)
                             msg.angular_velocity.z);
 
   viInterface_->addImuMeasurement(ts, acc, gyr);
+
+  if(true) {
+    publisher_->realtimePredictAndPublish(ts, acc, gyr);
+  }
+
+
 }
+
 
 } // namespace okvis

@@ -1,29 +1,24 @@
 cmake_minimum_required(VERSION 3.8...3.30)
 project(okvis VERSION 2.0.0 LANGUAGES CXX)
 
-# options for build configuration
-option (USE_SYSTEM_BRISK
-        "Use brisk via find_package rather than downloading it as part of okvis" OFF)
-option (USE_SYSTEM_DBOW2
-        "Use DBoW2 via find_package rather than downloading it as part of okvis" OFF)
-option (USE_SYSTEM_CERES
-        "Use ceres via find_package rather than downloading it as part of okvis" OFF)
-option (BUILD_APPS
-        "Builds a demo app (which require boost and OpenCV highgui)" ON)
-option (BUILD_TESTS
-        "Builds all gtests" OFF)
-option (BUILD_ROS2
-        "Builds ros2 wrapper" ON)
-option (HAVE_LIBREALSENSE
-        "Use realsense as part of okvis" ON)
-option (USE_NN
-        "Use keypoint classification as part of okvis, requires torch" OFF)
-option (USE_GPU
-        "Use keypoint classification with GPU inference, requires torch with Cuda" OFF)
-option (DO_TIMING
-        "Enable timing" ON)
-option (BUILD_SHARED_LIBS
-        "Whether to build okvis as a shared library" OFF)
+# ---------------- Options ----------------
+option(USE_SYSTEM_BRISK       "Use brisk via find_package rather than downloading it as part of okvis" OFF)
+option(USE_SYSTEM_DBOW2       "Use DBoW2 via find_package rather than downloading it as part of okvis" OFF)
+option(USE_SYSTEM_CERES       "Use ceres via find_package rather than downloading it as part of okvis" OFF)
+option(BUILD_APPS             "Builds a demo app (which require boost and OpenCV highgui)" ON)
+option(BUILD_TESTS            "Builds all gtests" OFF)
+option(BUILD_ROS2             "Builds ros2 wrapper" ON)
+option(HAVE_LIBREALSENSE      "Use realsense as part of okvis" OFF)
+option(USE_NN                 "Use keypoint classification as part of okvis, requires torch" OFF)
+option(USE_GPU                "Use keypoint classification with GPU inference, requires torch with Cuda" OFF)
+option(DO_TIMING              "Enable timing" ON)
+option(BUILD_SHARED_LIBS      "Whether to build okvis as a shared library" OFF)
+
+# Perf options
+option(OKVIS_ENABLE_NATIVE      "Enable -march=native/-mtune=native" ON)
+option(OKVIS_ENABLE_LTO         "Enable link-time optimization (IPO/LTO) in Release" ON)
+option(OKVIS_ENABLE_FAST_MATH   "Enable -ffast-math (may change VIO numerics!)" OFF)
+option(OKVIS_ENABLE_OPENMP      "Enable OpenMP (if available)" ON)
 
 set(OKVIS_CXX_STANDARD 17)
 set(OKVIS_PUBLIC_CXX_FLAGS)
